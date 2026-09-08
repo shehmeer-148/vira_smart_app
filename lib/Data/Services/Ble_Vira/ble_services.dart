@@ -35,6 +35,12 @@ class BleService {
         service: BleConstants.serviceConfig,
         characteristic: BleConstants.plantName,
     );
+    print("📥 RAW PLANT NAME BYTES: $bytes");
+    print("📏 PLANT NAME BYTE LENGTH: ${bytes.length}");
+
+    final name = BleParser.parseString(bytes);
+
+    print("🌱 PARSED PLANT NAME: $name");
     return BleParser.parseString(bytes);
 
   }
@@ -102,6 +108,79 @@ class BleService {
 
     return duration;
   }
+  Future<int> readScheduleDaysMask(String deviceId) async {
+
+    print("");
+    print("==============================================");
+    print("📖 BLE SERVICE - READ SCHEDULE DAYS MASK");
+    print("==============================================");
+
+    print("Device ID      : $deviceId");
+    print("Service        : ${BleConstants.serviceConfig}");
+    print("Characteristic : ${BleConstants.daysMask}");
+
+    print("");
+    print("➡️ Reading schedule days mask from Vira...");
+
+    final bytes = await read(
+      deviceId: deviceId,
+      service: BleConstants.serviceConfig,
+      characteristic: BleConstants.daysMask,
+    );
+
+    print("⬅️ Raw Days Mask Bytes : $bytes");
+
+    if (bytes.length != 1) {
+      throw Exception(
+        "Invalid Days Mask length. Expected 1 byte, got ${bytes.length}",
+      );
+    }
+
+    final daysMask = bytes[0];
+
+    print("📅 Parsed Days Mask    : $daysMask");
+    print(
+      "📅 Days Binary         : "
+          "${daysMask.toRadixString(2).padLeft(8, '0')}",
+    );
+
+    print("==============================================");
+
+    return daysMask;
+  }
+  Future<int> readScheduleTime(String deviceId) async {
+
+    print("");
+    print("==============================================");
+    print("📖 BLE SERVICE - READ SCHEDULE TIME");
+    print("==============================================");
+
+    print("Device ID      : $deviceId");
+    print("Service        : ${BleConstants.serviceConfig}");
+    print("Characteristic : ${BleConstants.schedule}");
+
+    print("");
+    print("➡️ Reading schedule time from Vira...");
+
+    final bytes = await read(
+      deviceId: deviceId,
+      service: BleConstants.serviceConfig,
+      characteristic: BleConstants.schedule,
+    );
+
+    print("⬅️ Raw Schedule Time Bytes : $bytes");
+
+    final timeMinutes = BleParser.parseUint16(bytes);
+
+    print("⏰ Parsed Time Minutes     : $timeMinutes");
+    print("⏰ Hour                    : ${timeMinutes ~/ 60}");
+    print("⏰ Minute                  : ${timeMinutes % 60}");
+
+    print("==============================================");
+
+    return timeMinutes;
+  }
+
 
 
   Future<int> readBatteryLevel(String deviceId) async {
@@ -144,13 +223,36 @@ class BleService {
     return BleParser.parseTankStatus(bytes);
   }
   Future<String> readDeviceUuid(String deviceId) async {
+
+    print("");
+    print("==============================================");
+    print("📖 BLE SERVICE - READ DEVICE UUID");
+    print("==============================================");
+
+    print("Device ID      : $deviceId");
+    print("Service        : ${BleConstants.serviceStatus}");
+    print("Characteristic : ${BleConstants.deviceUuid}");
+
+    print("");
+    print("➡️ Reading Device UUID from Vira...");
+
     final bytes = await read(
       deviceId: deviceId,
       service: BleConstants.serviceStatus,
       characteristic: BleConstants.deviceUuid,
     );
 
-    return BleParser.parseUuid(bytes);
+    print("⬅️ Raw Device UUID Bytes : $bytes");
+    print("📏 BYTE LENGTH           : ${bytes.length}");
+
+   // final uuid = BleParser.parseUuid(bytes);
+    final uuid = BleParser.parseDeviceUuid(bytes);
+
+    print("🔑 Parsed Device UUID    : $uuid");
+
+    print("==============================================");
+
+    return uuid;
   }
   Future<String> readFirmwareVersion(String deviceId) async {
     final bytes = await read(
@@ -195,12 +297,12 @@ class BleService {
       String deviceId,
       String name,
       ) async {
-
+    final nameWithSpace = '$name ';
     await write(
       deviceId: deviceId,
       service: BleConstants.serviceConfig,
       characteristic: BleConstants.plantName,
-      value: BleEncoder.string(name),
+      value: BleEncoder.string(nameWithSpace),
     );
   }
   Future<void> writePlantType(
@@ -224,7 +326,7 @@ class BleService {
     );
 
   }
-  Future<void> writeWaterDuration(
+  Future<void> writeWaterDurationOld(
       String deviceId,
       int seconds,
       ) async {
@@ -249,51 +351,152 @@ class BleService {
       value: BleEncoder.uint32(unixTime),
     );
   }
-  Future<void> writeScheduleConfig(
-      String deviceId, {
-        required int daysMask,
-        required int timeMinutes,
-        required int wateringsPerDay,
-      }) async {
-    print("Schedule data comes from user is:=============== ");
-    print("DaysMask is:======   $daysMask");
-    print("Time Minute is:======   $timeMinutes");
-    print("Watering Per Day is:======   $wateringsPerDay");
+  Future<void> writeScheduleDaysMask(
+      String deviceId,
+      int daysMask,
+      ) async {
+    print("📤 Writing Days Mask: $daysMask");
+
+    await write(
+      deviceId: deviceId,
+      service: BleConstants.serviceConfig,
+      characteristic: BleConstants.daysMask,
+      value: [daysMask],
+    );
+  }
+  Future<void> writeScheduleTime(
+      String deviceId,
+      int timeMinutes,
+      ) async {
+    print("📤 Writing Time Minutes: $timeMinutes");
+
+    final bytes = [
+      timeMinutes & 0xFF,
+      (timeMinutes >> 8) & 0xFF,
+    ];
+
+    print("📤 Time Bytes: $bytes");
+
     await write(
       deviceId: deviceId,
       service: BleConstants.serviceConfig,
       characteristic: BleConstants.schedule,
-      value: BleEncoder.scheduleConfig(
-        daysMask: daysMask,
-        timeMinutes: timeMinutes,
-        wateringsPerDay: wateringsPerDay,
-      ),
+      value: bytes,
+    );
+  }
+  Future<void> writeWaterDuration(
+      String deviceId,
+      int waterDuration,
+      ) async {
+    print("📤 Writing Water Duration: $waterDuration");
+
+    final bytes = [
+      waterDuration & 0xFF,
+      (waterDuration >> 8) & 0xFF,
+    ];
+
+    print("📤 Duration Bytes: $bytes");
+
+    await write(
+      deviceId: deviceId,
+      service: BleConstants.serviceConfig,
+      characteristic: BleConstants.waterDuration,
+      value: bytes,
     );
   }
 
   //* ================ NOTIFY =================== *//
+  // Stream<List<int>> notify({
+  //   required String deviceId,
+  //   required Uuid service,
+  //   required Uuid characteristic,
+  // }) {
+  //   final qualified = BleHelper.characteristic(
+  //     deviceId: deviceId,
+  //     service: service,
+  //     characteristic: characteristic,
+  //   );
+  //
+  //   return ble.subscribeToCharacteristic(
+  //     qualified,
+  //   );
+  // }
+
+  // Stream<int> batteryStream(String deviceId) {
+  //   return notify(
+  //     deviceId: deviceId,
+  //     service: BleConstants.serviceStatus,
+  //     characteristic: BleConstants.battery,
+  //   ).map(BleParser.parseUint8);
+  // }
+  /// BLE NOTIFICATION
+  Stream<int> batteryStream(String deviceId) {
+
+    print("");
+    print("🔋 Creating battery stream...");
+    print("📱 Device: $deviceId");
+    print("🔧 Battery Characteristic: ${BleConstants.battery}");
+
+    return notify(
+      deviceId: deviceId,
+      service: BleConstants.serviceStatus,
+      characteristic: BleConstants.battery,
+    ).map((bytes) {
+
+      print("🔋 Parsing battery bytes...");
+      print("🔋 Raw bytes: $bytes");
+
+      final battery = BleParser.parseUint8(bytes);
+
+      print("🔋 Parsed battery: $battery%");
+
+      return battery;
+    });
+  }
   Stream<List<int>> notify({
     required String deviceId,
     required Uuid service,
     required Uuid characteristic,
   }) {
+
+    print("");
+    print("==================================================");
+    print("🔔 SUBSCRIBING TO BLE NOTIFICATION");
+    print("==================================================");
+    print("📱 Device       : $deviceId");
+    print("🔧 Service      : $service");
+    print("🔧 Characteristic: $characteristic");
+    print("==================================================");
+
     final qualified = BleHelper.characteristic(
       deviceId: deviceId,
       service: service,
       characteristic: characteristic,
     );
 
-    return ble.subscribeToCharacteristic(
-      qualified,
-    );
-  }
+    print("✅ Qualified Characteristic Created");
+    print("   Device ID: ${qualified.deviceId}");
+    print("   Service UUID: ${qualified.serviceId}");
+    print("   Characteristic UUID: ${qualified.characteristicId}");
 
-  Stream<int> batteryStream(String deviceId) {
-    return notify(
-      deviceId: deviceId,
-      service: BleConstants.serviceStatus,
-      characteristic: BleConstants.battery,
-    ).map(BleParser.parseUint8);
+    print("📡 Calling subscribeToCharacteristic()...");
+
+    return ble
+        .subscribeToCharacteristic(qualified)
+        .map((bytes) {
+
+      print("");
+      print("📥 ==========================================");
+      print("📥 RAW BLE NOTIFICATION RECEIVED");
+      print("📥 Bytes      : $bytes");
+      print("📥 Length     : ${bytes.length}");
+      print(
+        "📥 HEX        : ${bytes.map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase()).join(' ')}",
+      );
+      print("📥 ==========================================");
+
+      return bytes;
+    });
   }
   Stream<TankStatus> tankStatusStream(String deviceId) {
     return notify(

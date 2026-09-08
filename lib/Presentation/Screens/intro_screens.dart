@@ -17,21 +17,21 @@ class _OnboardingScreensState extends State<OnboardingScreens> {
 
   final List<OnboardingItem> _pages = [
     OnboardingItem(
-      icon: Icons.eco_rounded,
+      icon: Image(image: AssetImage("images/onboardingPics/vira a.png")),
       title: "Welcome to Vira Plantra",
       description:
       "Connect your smart pots, monitor your plants, and stay informed about their water and care needs.",
       buttonText: "Get Started",
     ),
     OnboardingItem(
-      icon: Icons.bluetooth_rounded,
+      icon: Image(image: AssetImage("images/onboardingPics/vira b.png")),
       title: "Turn On Bluetooth",
       description:
       "Bluetooth allows Vira Plantra to discover and communicate with your nearby smart pots.",
       buttonText: "Next",
     ),
     OnboardingItem(
-      icon: Icons.location_on_rounded,
+      icon: Image(image: AssetImage("images/onboardingPics/vira c.png")),
       title: "Allow Location",
       description:
       "Location permission may be required to discover nearby Bluetooth devices on your Android device.",
@@ -108,40 +108,14 @@ class _OnboardingScreensState extends State<OnboardingScreens> {
 
           // Illustration
           Container(
-            width: 170,
-            height: 170,
+            width: 370,
+            height: 370,
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppColors.primary.withOpacity(.10),
+             // shape: BoxShape.circle,
+              color: Colors.transparent
             ),
             child: Center(
-              child: Container(
-                width: 125,
-                height: 125,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      AppColors.primary,
-                      AppColors.primaryLight,
-                    ],
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primary.withOpacity(.25),
-                      blurRadius: 25,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  item.icon,
-                  size: 58,
-                  color: Colors.white,
-                ),
-              ),
+              child: item.icon,
             ),
           ),
 
@@ -238,7 +212,7 @@ class _OnboardingScreensState extends State<OnboardingScreens> {
 }
 
 class OnboardingItem {
-  final IconData icon;
+  final Image icon;
   final String title;
   final String description;
   final String buttonText;

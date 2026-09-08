@@ -53,7 +53,6 @@ class ViraPlantraApp extends StatelessWidget {
 
         theme: AppTheme.lightTheme,
 
-       // home: const OnboardingPage(),
         home: const OnboardingScreens(),
       ),
     );

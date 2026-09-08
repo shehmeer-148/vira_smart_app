@@ -26,23 +26,42 @@ class BleParser {
     return data.getUint32(0, Endian.little);
   }
 
-  /// UUID Parser
-  static String parseUuid(List<int> bytes) {
-    if (bytes.length != 16) {
-      return "Invalid UUID";
+  static String parseUuidOld(List<int> bytes) {
+    print("UUID Coming from the vira is: ${bytes.toList()}");
+    if (bytes.length != 8) {
+      return "Invalid Device ID";
     }
 
     final hex = bytes
         .map((b) => b.toRadixString(16).padLeft(2, '0'))
         .join();
 
-    return "${hex.substring(0, 8)}-"
-        "${hex.substring(8, 12)}-"
-        "${hex.substring(12, 16)}-"
-        "${hex.substring(16, 20)}-"
-        "${hex.substring(20)}";
+    return "0x${hex.toUpperCase()}";
   }
+  static String parseUuid(List<int> bytes) {
 
+    if (bytes.length != 16) {
+      return "Invalid Device UUID";
+    }
+
+    final hex = bytes
+        .map((b) => b.toRadixString(16).padLeft(2, '0'))
+        .join();
+
+    return "0x${hex.toUpperCase()}";
+  }
+  static String parseDeviceUuid(List<int> bytes) {
+    print("🟢 UUID ENTERING PARSER: $bytes");
+
+    if (bytes.length != 8) {
+      return "Invalid UUID";
+    }
+
+    return bytes
+        .map((b) => b.toRadixString(16).padLeft(2, '0'))
+        .join()
+        .toUpperCase();
+  }
   /// firmware Version parser
   static String parseFirmwareVersion(List<int> bytes) {
     if (bytes.length < 3) {

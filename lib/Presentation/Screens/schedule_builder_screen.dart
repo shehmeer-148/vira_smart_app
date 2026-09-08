@@ -94,7 +94,6 @@ class _WateringScheduleScreenState extends State<WateringScheduleScreen> {
 
                 ElevatedButton(
                   onPressed: () async {
-                    print(provider.schedule);
                     final ble = context.read<BleProvider>();
                     final plant = context.read<PlantProvider>();
 

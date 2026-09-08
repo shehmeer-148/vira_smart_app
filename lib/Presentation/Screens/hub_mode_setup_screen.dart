@@ -84,8 +84,7 @@ class _HubModeSetupScreenState extends State<HubModeSetupScreen> {
                     if (!context.mounted) return;
 
                     if (success) {
-                      // await ble.readSchedule();
-                       await ble.readWaterDuration();
+
                       Navigator.pushReplacement(
                         context,
                         MaterialPageRoute(

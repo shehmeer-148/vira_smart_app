@@ -433,7 +433,6 @@ class _ChoosePlantScreenState extends State<ChoosePlantScreen> {
                       final plant = plantProvider.selectedPlant!;
 
 
-
                       final success = await bleProvider.saveSelectedPlant(
                         plantId: plant.id,
                         plantName: plant.name,
@@ -444,19 +443,20 @@ class _ChoosePlantScreenState extends State<ChoosePlantScreen> {
                       if (success) {
                         print("🟢 CONNECTED — STARTING VIRA READ TEST");
 
-                         final plantName = await bleProvider.readPlantName();
-                         final plantType= await bleProvider.readPlantType();
 
-                        // // to test the read values
-                        final batteryLevel = await bleProvider.readBatteryLevel();
                         await bleProvider.setupDone();
+                        final plantName = await bleProvider.readPlantName();
+                        final plantType= await bleProvider.readPlantType();
+                        final batteryLevel = await bleProvider.readBatteryLevel();
                         await bleProvider.readDeviceInfo();
+                        await bleProvider.readDeviceUuid();
+                        bleProvider.startBatteryNotification();
                         print("");
                         print("==========================================");
                         print("✅ VIRA READ TEST RESULT");
                         print("Battery Level : $batteryLevel");
                         print("Plant Name : $plantName");
-                        print("Plant Name : $plantType");
+                        print("Plant Type : $plantType");
                         print("==========================================");
                         Navigator.push(
                           context,

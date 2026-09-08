@@ -33,23 +33,4 @@ class BleEncoder {
     return data.buffer.asUint8List();
   }
 
-  static List<int> scheduleConfig({
-    required int daysMask,
-    required int timeMinutes,
-    required int wateringsPerDay,
-  }) {
-
-    final bytes = [
-      daysMask,
-      timeMinutes & 0xFF,
-      (timeMinutes >> 8) & 0xFF,
-      wateringsPerDay,
-      0x00,
-    ];
-    print("Schedule data write in Vira pot as: ========== ");
-    print("📤 Schedule Bytes -> $bytes");
-
-    return bytes;
-
-  }
 }

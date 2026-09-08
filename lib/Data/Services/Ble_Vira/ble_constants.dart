@@ -15,26 +15,15 @@ class BleConstants {
   // FFC1 Characteristics
   // ======================
 
-  static final Uuid plantName =
-  Uuid.parse("0000FFD1-0000-1000-8000-00805F9B34FB");
-
-  static final Uuid plantType =
-  Uuid.parse("0000FFD2-0000-1000-8000-00805F9B34FB");
-
-  static final Uuid schedule =
-  Uuid.parse("0000FFD3-0000-1000-8000-00805F9B34FB");
-
-  static final Uuid waterDuration =
-  Uuid.parse("0000FFD4-0000-1000-8000-00805F9B34FB");
-
-  static final Uuid hubMode =
-  Uuid.parse("0000FFD5-0000-1000-8000-00805F9B34FB");
-
-  static final Uuid rtcSync =
-  Uuid.parse("0000FFD6-0000-1000-8000-00805F9B34FB");
-
-  static final Uuid controlPoint =
-  Uuid.parse("0000FFD7-0000-1000-8000-00805F9B34FB");
+  static final Uuid plantName = Uuid.parse("0000FFD1-0000-1000-8000-00805F9B34FB");
+  static final Uuid plantType = Uuid.parse("0000FFD2-0000-1000-8000-00805F9B34FB");
+  static final Uuid daysMask = Uuid.parse("0000FFD3-0000-1000-8000-00805F9B34FB");
+  static final Uuid schedule = Uuid.parse("0000FFD4-0000-1000-8000-00805F9B34FB");
+  static final Uuid waterDuration = Uuid.parse("0000FFD5-0000-1000-8000-00805F9B34FB");
+  static final Uuid hubMode = Uuid.parse("0000FFD6-0000-1000-8000-00805F9B34FB");
+  static final Uuid beaconInterval = Uuid.parse("0000FFD7-0000-1000-8000-00805F9B34FB");
+  static final Uuid rtcSync = Uuid.parse("0000FFD8-0000-1000-8000-00805F9B34FB");
+  static final Uuid controlPoint = Uuid.parse("0000FFD9-0000-1000-8000-00805F9B34FB");
 
   // ======================
   // FFC0 Characteristics
