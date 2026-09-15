@@ -441,23 +441,22 @@ class _ChoosePlantScreenState extends State<ChoosePlantScreen> {
                       if (!context.mounted) return;
 
                       if (success) {
-                        print("🟢 CONNECTED — STARTING VIRA READ TEST");
+                       // print("🟢 CONNECTED — STARTING VIRA READ TEST");
 
 
-                        await bleProvider.setupDone();
-                        final plantName = await bleProvider.readPlantName();
-                        final plantType= await bleProvider.readPlantType();
-                        final batteryLevel = await bleProvider.readBatteryLevel();
-                        await bleProvider.readDeviceInfo();
-                        await bleProvider.readDeviceUuid();
-                        bleProvider.startBatteryNotification();
-                        print("");
-                        print("==========================================");
-                        print("✅ VIRA READ TEST RESULT");
-                        print("Battery Level : $batteryLevel");
-                        print("Plant Name : $plantName");
-                        print("Plant Type : $plantType");
-                        print("==========================================");
+                        // await bleProvider.setupDone();
+                        // final plantName = await bleProvider.readPlantName();
+                        // final plantType= await bleProvider.readPlantType();
+                        // final batteryLevel = await bleProvider.readBatteryLevel();
+                        // await bleProvider.readDeviceUuid();
+                        // bleProvider.startBatteryNotification();
+                        // print("");
+                        // print("==========================================");
+                        // print("✅ VIRA READ TEST RESULT");
+                        // print("Battery Level : $batteryLevel");
+                        // print("Plant Name : $plantName");
+                        // print("Plant Type : $plantType");
+                        // print("==========================================");
                         Navigator.push(
                           context,
                           MaterialPageRoute(

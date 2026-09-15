@@ -21,26 +21,80 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
+// class _DashboardScreenState extends State<DashboardScreen> {
+//   final String userName = "Good morning";
+//
+//   late PotProvider potProvider;
+//   late BleProvider bleProvider;
+//
+//   @override
+//   void initState() {
+//     super.initState();
+//
+//     WidgetsBinding.instance.addPostFrameCallback((_) async {
+//       potProvider = context.read<PotProvider>();
+//       bleProvider = context.read<BleProvider>();
+//
+//       potProvider.clear();
+//
+//       await potProvider.loadAllPots();
+//
+//       await _startDashboardAutoScan();
+//     });
+//   }
+//
+//   @override
+//   void dispose() {
+//     bleProvider.stopDashboardAutoScan();
+//
+//     super.dispose();
+//   }
+//
+//   Future<void> _startDashboardAutoScan() async {
+//     await bleProvider.startDashboardAutoScan(
+//       potProvider.pots,
+//     );
+//   }
 class _DashboardScreenState extends State<DashboardScreen> {
   final String userName = "Good morning";
-  late PotProvider potProvider;
 
+  late PotProvider potProvider;
+  late BleProvider bleProvider;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    potProvider = context.read<PotProvider>();
+    bleProvider = context.read<BleProvider>();
+  }
 
   @override
   void initState() {
     super.initState();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      potProvider = context.read<PotProvider>();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       potProvider.clear();
-      potProvider.loadAllPots();
+
+      await potProvider.loadAllPots();
+
+      if (!mounted) return;
+
+      await _startDashboardAutoScan();
     });
   }
 
-
   @override
   void dispose() {
+    bleProvider.stopDashboardAutoScan();
+
     super.dispose();
+  }
+
+  Future<void> _startDashboardAutoScan() async {
+    await bleProvider.startDashboardAutoScan(
+      potProvider.pots,
+    );
   }
 
 
@@ -140,8 +194,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 const EdgeInsets.only(bottom: 18),
                                 child: potCard(
                                   context: context,
-                                  onTap: () {
-                                    Navigator.push(
+                                  onTap: () async{
+                                    await bleProvider.stopDashboardAutoScan();
+
+                                    await Navigator.push(
                                       context,
                                       MaterialPageRoute(
                                         builder: (context) =>
@@ -150,6 +206,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                             ),
                                       ),
                                     );
+
+                                    await _startDashboardAutoScan();
                                   },
                                   image: pot.plantImage,
                                   name: pot.plantName,

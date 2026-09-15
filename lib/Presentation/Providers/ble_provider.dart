@@ -1,10 +1,10 @@
 import 'dart:async';
+import 'dart:collection';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
 import 'package:vira_planter_app/Presentation/Providers/plant_provider.dart';
 
-import '../../Core/plant_library.dart';
 import '../../Data/Model_classes/pot_model.dart';
 import '../../Data/Services/Ble_Vira/ble_parser.dart';
 import '../../Data/Services/Ble_Vira/ble_services.dart';
@@ -85,6 +85,17 @@ class BleProvider extends ChangeNotifier {
   bool _isSetupFinished = false;
   bool get isSetupFinished => _isSetupFinished;
 
+  /// AUTO DASHBOARD SCANNING
+
+  bool _isAutoScanning = false;
+  bool get isAutoScanning => _isAutoScanning;
+  bool _isAutoProcessing = false;
+  final Queue<PotModel> _autoPotQueue = Queue<PotModel>();
+  final Set<String> _autoSeenPots = {};
+  final Set<String> _queuedAutoPotIds = {};
+  Timer? _autoScanTimer;
+  final Set<String> _autoDetectedThisCycle = {};
+
   // ====================== BLUETOOTH PAIRING & SCANNING FUNCTIONS =====================//
 
   /// INITIALIZE
@@ -137,6 +148,7 @@ class BleProvider extends ChangeNotifier {
 
     _connectedDevice = null;
     _selectedDevice = null;
+
 
     _isConnecting = false;
 
@@ -1024,6 +1036,468 @@ class BleProvider extends ChangeNotifier {
     }
   }
 
+  /// CONNECT AUTOMATICALLY IN DASHBOARD PAGE
+  Future<void> startDashboardAutoScan(
+      List<PotModel> savedPots,
+      ) async {
+    debugPrint('');
+    debugPrint('========== DASHBOARD AUTO SCAN START ==========');
+
+    debugPrint(
+      '[AUTO SCAN] isAutoScanning: $_isAutoScanning',
+    );
+
+    debugPrint(
+      '[AUTO SCAN] Saved pots count: ${savedPots.length}',
+    );
+
+    debugPrint(
+      '[AUTO SCAN] BLE status: $_bleStatus',
+    );
+
+    if (_isAutoScanning) {
+      debugPrint(
+        '[AUTO SCAN] Already running → RETURN',
+      );
+      return;
+    }
+
+    if (savedPots.isEmpty) {
+      debugPrint(
+        '[AUTO SCAN] No saved pots found → RETURN',
+      );
+      return;
+    }
+
+    if (_bleStatus != BleStatus.ready) {
+      debugPrint(
+        '[AUTO SCAN] BLE is not ready → RETURN',
+      );
+      return;
+    }
+
+    for (final pot in savedPots) {
+      debugPrint(
+        '[AUTO SCAN] Saved pot → ${pot.deviceId}',
+      );
+    }
+
+    _isAutoScanning = true;
+
+    debugPrint(
+      '[AUTO SCAN] Auto scanning enabled',
+    );
+
+    notifyListeners();
+
+    debugPrint(
+      '[AUTO SCAN] Starting first scan cycle...',
+    );
+
+    await _runDashboardScanCycle(savedPots);
+
+    debugPrint(
+      '[AUTO SCAN] startDashboardAutoScan() finished',
+    );
+
+    debugPrint('==============================================');
+  }
+  Future<void> _runDashboardScanCycle(
+      List<PotModel> savedPots,
+      ) async {
+    debugPrint('');
+    debugPrint('========== AUTO SCAN CYCLE ==========');
+
+    debugPrint(
+      '[AUTO SCAN] isAutoScanning: $_isAutoScanning',
+    );
+
+    debugPrint(
+      '[AUTO SCAN] isAutoProcessing: $_isAutoProcessing',
+    );
+
+    if (!_isAutoScanning) {
+      debugPrint(
+        '[AUTO SCAN] Auto scanning disabled → RETURN',
+      );
+      return;
+    }
+
+    if (_isAutoProcessing) {
+      debugPrint(
+        '[AUTO SCAN] Another pot is currently processing → RETURN',
+      );
+      return;
+    }
+
+    debugPrint(
+      '[AUTO SCAN] Stopping any previous scan...',
+    );
+
+    await stopScan();
+
+    debugPrint(
+      '[AUTO SCAN] Previous scan stopped',
+    );
+
+    _devices.clear();
+
+    debugPrint(
+      '[AUTO SCAN] Discovered devices list cleared',
+    );
+
+    _connectionState = BleConnectionState.scanning;
+
+    debugPrint(
+      '[AUTO SCAN] Connection state → SCANNING',
+    );
+
+    notifyListeners();
+
+    debugPrint(
+      '[AUTO SCAN] Starting BLE scan...',
+    );
+
+    _scanSubscription = _bleService.scan().listen(
+          (device) {
+        debugPrint(
+          '[AUTO SCAN] Device discovered → '
+              '${device.name} | ${device.id}',
+        );
+
+        _handleDashboardDiscoveredDevice(
+          device,
+          savedPots,
+        );
+      },
+      onError: (error) {
+        debugPrint(
+          '[AUTO SCAN] ❌ Scan error: $error',
+        );
+
+        debugPrint(
+          '[AUTO SCAN] Finishing scan cycle because of error...',
+        );
+
+        _finishDashboardScanCycle(savedPots);
+      },
+      onDone: () {
+        debugPrint(
+          '[AUTO SCAN] Scan stream DONE',
+        );
+
+        debugPrint(
+          '[AUTO SCAN] Finishing scan cycle...',
+        );
+
+        _finishDashboardScanCycle(savedPots);
+      },
+    );
+
+    debugPrint(
+      '[AUTO SCAN] BLE scan started successfully',
+    );
+
+    debugPrint(
+      '[AUTO SCAN] Scan will run for 10 seconds',
+    );
+
+    _autoScanTimer?.cancel();
+
+    _autoScanTimer = Timer(
+      const Duration(seconds: 10),
+          () {
+        debugPrint('');
+        debugPrint(
+          '[AUTO SCAN] ⏱️ 10-second scan timer completed',
+        );
+
+        debugPrint(
+          '[AUTO SCAN] Finishing scan cycle from timer...',
+        );
+
+        _finishDashboardScanCycle(savedPots);
+      },
+    );
+
+    debugPrint('====================================');
+  }
+  Future<void> _finishDashboardScanCycle(
+      List<PotModel> savedPots,
+      ) async {
+    if (!_isAutoScanning) {
+      return;
+    }
+
+    _autoScanTimer?.cancel();
+    _autoScanTimer = null;
+
+    await stopScan();
+
+    // Check which pots left range.
+    final leftPots = _autoSeenPots
+        .difference(_autoDetectedThisCycle)
+        .toList();
+
+    for (final deviceId in leftPots) {
+      _autoSeenPots.remove(deviceId);
+
+      debugPrint(
+        '[AUTO PRESENCE] Pot left range → $deviceId',
+      );
+    }
+
+    _autoDetectedThisCycle.clear();
+
+    // Process queued pots first.
+    if (_autoPotQueue.isNotEmpty) {
+      await _processNextAutoPot();
+      return;
+    }
+
+    // Nothing to process → start another scan.
+    if (_isAutoScanning) {
+      await Future.delayed(
+        const Duration(seconds: 1),
+      );
+
+      if (_isAutoScanning) {
+        final pots = await _getSavedPots();
+
+        await _runDashboardScanCycle(pots);
+      }
+    }
+  }
+  void _handleDashboardDiscoveredDevice(
+      DiscoveredDevice device,
+      List<PotModel> savedPots,
+      ) {
+    debugPrint(
+      '[AUTO DISCOVERY] Device found: '
+          '${device.name} | ${device.id}',
+    );
+
+    final pot = savedPots.cast<PotModel?>().firstWhere(
+          (pot) => pot!.deviceId == device.id,
+      orElse: () => null,
+    );
+
+    if (pot == null) {
+      debugPrint(
+        '[AUTO DISCOVERY] Not a saved pot → IGNORE',
+      );
+      return;
+    }
+
+    _autoDetectedThisCycle.add(device.id);
+
+    debugPrint(
+      '[AUTO DISCOVERY] Pot detected in current scan cycle: ${device.id}',
+    );
+
+    debugPrint(
+      '[AUTO DISCOVERY] ✅ Saved pot found: ${pot.deviceId}',
+    );
+
+    if (isPotConnected(device.id)) {
+      debugPrint(
+        '[AUTO DISCOVERY] Pot already connected → IGNORE',
+      );
+      return;
+    }
+
+    if (_queuedAutoPotIds.contains(device.id)) {
+      debugPrint(
+        '[AUTO DISCOVERY] Pot already in queue → IGNORE',
+      );
+      return;
+    }
+
+    if (_autoSeenPots.contains(device.id)) {
+      debugPrint(
+        '[AUTO DISCOVERY] Pot already synced during current presence → IGNORE',
+      );
+      return;
+    }
+
+    _autoPotQueue.add(pot);
+    _queuedAutoPotIds.add(device.id);
+
+    debugPrint(
+      '[AUTO DISCOVERY] ➕ Pot added to queue: ${pot.deviceId}',
+    );
+
+    debugPrint(
+      '[AUTO DISCOVERY] Queue size: ${_autoPotQueue.length}',
+    );
+
+  }
+  Future<void> _processNextAutoPot() async {
+    debugPrint('');
+    debugPrint('========== PROCESS NEXT AUTO POT ==========');
+
+    debugPrint('[AUTO PROCESS] isAutoScanning: $_isAutoScanning',);
+
+    debugPrint('[AUTO PROCESS] isAutoProcessing: $_isAutoProcessing',);
+
+    debugPrint('[AUTO PROCESS] Queue size: ${_autoPotQueue.length}',);
+
+    if (!_isAutoScanning) {
+      debugPrint(
+        '[AUTO PROCESS] Auto scanning disabled → RETURN',
+      );
+      return;
+    }
+
+    if (_isAutoProcessing) {
+      debugPrint(
+        '[AUTO PROCESS] Another pot is already processing → RETURN',
+      );
+      return;
+    }
+
+    if (_autoPotQueue.isEmpty) {
+      debugPrint(
+        '[AUTO PROCESS] Queue is empty → RETURN',
+      );
+      return;
+    }
+
+    _isAutoProcessing = true;
+
+    final pot = _autoPotQueue.removeFirst();
+    _queuedAutoPotIds.remove(pot.deviceId);
+
+    debugPrint('[AUTO PROCESS] 🔄 Processing pot: ${pot.deviceId}',);
+
+    debugPrint('[AUTO PROCESS] Remaining queue: ${_autoPotQueue.length}',);
+
+    try {
+      debugPrint('[AUTO PROCESS] Stopping scan before connection...',);
+
+      await stopScan();
+
+      debugPrint('[AUTO PROCESS] Scan stopped',);
+
+      debugPrint('[AUTO PROCESS] Connecting to pot: ${pot.deviceId}',);
+
+      final result = await connectToPot(pot);
+
+      debugPrint('[AUTO PROCESS] Connection result: $result',);
+
+      if (result == ConnectResult.connected) {
+        debugPrint(
+          '[AUTO PROCESS] ✅ Pot connected: ${pot.deviceId}',
+        );
+
+        _autoSeenPots.add(pot.deviceId);
+
+        debugPrint(
+          '[AUTO PROCESS] Pot marked as currently present/synced',
+        );
+
+        await disconnect();
+
+        debugPrint(
+          '[AUTO PROCESS] Pot disconnected',
+        );
+      } else {
+        debugPrint(
+          '[AUTO PROCESS] ❌ Connection failed: $result',
+        );
+      }
+
+    } catch (e, stackTrace) {
+      debugPrint(
+        '[AUTO PROCESS] ❌ Auto sync failed for '
+            '${pot.deviceId}: $e',
+      );
+
+      debugPrint(
+        '[AUTO PROCESS] StackTrace: $stackTrace',
+      );
+    }
+
+    _isAutoProcessing = false;
+
+    debugPrint(
+      '[AUTO PROCESS] Processing finished',
+    );
+
+    debugPrint('==========================================');
+    if (_isAutoScanning) {
+      final pots = await _getSavedPots();
+
+      await _runDashboardScanCycle(pots);
+    }
+  }
+  Future<List<PotModel>> _getSavedPots() async {
+    debugPrint(
+      '[AUTO DATABASE] Loading saved pots from SQLite...',
+    );
+
+    final pots = await _database.getAllPots();
+
+    debugPrint(
+      '[AUTO DATABASE] ✅ Loaded ${pots.length} saved pots',
+    );
+
+    for (final pot in pots) {
+      debugPrint(
+        '[AUTO DATABASE] Pot: ${pot.deviceId}',
+      );
+    }
+
+    return pots;
+  }
+  Future<void> stopDashboardAutoScan() async {
+    debugPrint('');
+    debugPrint('========== STOP DASHBOARD AUTO SCAN ==========');
+
+    debugPrint(
+      '[AUTO STOP] Stopping dashboard auto scan...',
+    );
+
+    _isAutoScanning = false;
+
+    debugPrint(
+      '[AUTO STOP] isAutoScanning → false',
+    );
+
+    _autoScanTimer?.cancel();
+    _autoScanTimer = null;
+
+    debugPrint(
+      '[AUTO STOP] Scan timer cancelled',
+    );
+
+    debugPrint(
+      '[AUTO STOP] Clearing queue '
+          '(${_autoPotQueue.length} pots)',
+    );
+
+    _autoPotQueue.clear();
+    _queuedAutoPotIds.clear();
+
+    debugPrint(
+      '[AUTO STOP] Queue cleared',
+    );
+
+    await stopScan();
+
+    debugPrint(
+      '[AUTO STOP] BLE scan stopped',
+    );
+
+    notifyListeners();
+
+    debugPrint(
+      '[AUTO STOP] ✅ Dashboard auto scan completely stopped',
+    );
+
+    debugPrint('==============================================');
+  }
+
   // ====================== DATABASE FUNCTIONS =====================//
 
   /// INSERT OR UPDATE
@@ -1181,10 +1655,6 @@ class BleProvider extends ChangeNotifier {
         return false;
       }
 
-      // ---------------------------------------------
-      // Save / update SQLite
-      // ---------------------------------------------
-
       print("💾 Saving synced pot to database...");
 
       final success = await saveCurrentPot(
@@ -1224,11 +1694,8 @@ class BleProvider extends ChangeNotifier {
 
       final deviceId = _connectedDevice!.id;
 
-      print("");
-      print("==========================================");
       print("📖 READ PLANT NAME");
       print("Device: $deviceId");
-      print("==========================================");
 
       final plantName =
       await _bleService.readPlantName(deviceId);
@@ -1252,11 +1719,9 @@ class BleProvider extends ChangeNotifier {
 
       final deviceId = _connectedDevice!.id;
 
-      print("");
-      print("==========================================");
+
       print("📖 READ PLANT TYPE");
       print("Device: $deviceId");
-      print("==========================================");
 
       final plantType =
       await _bleService.readPlantType(deviceId);
@@ -1297,43 +1762,6 @@ class BleProvider extends ChangeNotifier {
       print("Error: $e");
       print(stack);
       return null;
-    }
-  }
-  Future<void> readDeviceInfo() async {
-    try {
-      if (_connectedDevice == null) {
-        print("❌ No connected device");
-        return;
-      }
-
-      final deviceId = _connectedDevice!.id;
-
-      print("");
-      print("==================================================");
-      print("🔍 READING VIRA DEVICE INFO");
-      print("==================================================");
-      print("BLE Device ID : $deviceId");
-
-      final deviceUuid =
-      await _bleService.readDeviceUuid(deviceId);
-
-      final firmware =
-      await _bleService.readFirmwareVersion(deviceId);
-
-      print("");
-      print("==================================================");
-      print("✅ VIRA DEVICE INFO");
-      print("==================================================");
-      print("📱 BLE Device ID : $deviceId");
-      print("🔑 Device UUID   : $deviceUuid");
-      print("⚙️ Firmware      : $firmware");
-      print("==================================================");
-
-    } catch (e, stack) {
-      print("");
-      print("❌ FAILED TO READ DEVICE INFO");
-      print("Error: $e");
-      print(stack);
     }
   }
   Future<String?> readDeviceUuid() async {
@@ -1690,7 +2118,6 @@ class BleProvider extends ChangeNotifier {
       return null;
     }
   }
-
   Future<PotModel?> readCurrentPot() async {
     try {
       if (_connectedDevice == null) {
@@ -1700,291 +2127,21 @@ class BleProvider extends ChangeNotifier {
 
       final deviceId = _connectedDevice!.id;
 
-      print("");
-      print("==================================================");
-      print("📖 Reading Current Pot - SEQUENTIAL");
+
+      print("📖 PROVIDER - READING CURRENT POT");
       print("Device : $deviceId");
       print("==================================================");
 
-      //==================================================
-      // 1. PLANT NAME
-      //==================================================
-
-      print("");
-      print("1️⃣ Reading Plant Name...");
-
-      final plantName =
-      await _bleService.readPlantName(deviceId);
-
-      print("✅ Plant Name: $plantName");
-
-
-      //==================================================
-      // 2. PLANT TYPE
-      //==================================================
-
-      print("");
-      print("2️⃣ Reading Plant Type...");
-
-      final plantType =
-      await _bleService.readPlantType(deviceId);
-
-      print("✅ Plant Type: $plantType");
-
-
-      //==================================================
-      // 3. DAYS MASK
-      //==================================================
-
-      print("");
-      print("3️⃣ Reading Schedule Days Mask...");
-
-      final daysMask =
-      await _bleService.readScheduleDaysMask(deviceId);
-
-      print("✅ Days Mask: $daysMask");
-
-
-      //==================================================
-      // 4. SCHEDULE TIME
-      //==================================================
-
-      print("");
-      print("4️⃣ Reading Schedule Time...");
-
-      final timeMinutes =
-      await _bleService.readScheduleTime(deviceId);
-
-      print("✅ Time Minutes: $timeMinutes");
-
-
-      //==================================================
-      // 5. WATER DURATION
-      //==================================================
-
-      print("");
-      print("5️⃣ Reading Water Duration...");
-
-      final waterDuration =
-      await _bleService.readWaterDuration(deviceId);
-
-      print("✅ Water Duration: $waterDuration seconds");
-
-
-      //==================================================
-      // 6. BATTERY
-      //==================================================
-
-      print("");
-      print("6️⃣ Reading Battery Level...");
-
-      final batteryLevel =
-      await _bleService.readBatteryLevel(deviceId);
-
-      print("✅ Battery: $batteryLevel%");
-
-
-      //==================================================
-      // 7. LAST WATERED
-      //==================================================
-
-      print("");
-      print("7️⃣ Reading Last Watered...");
-
-      final lastWatered =
-      await _bleService.readLastWatered(deviceId);
-
-      print("✅ Last Watered: $lastWatered");
-
-
-      //==================================================
-      // 8. CYCLE COUNT
-      //==================================================
-
-      print("");
-      print("8️⃣ Reading Cycle Count...");
-
-      final cycleCount =
-      await _bleService.readCycleCount(deviceId);
-
-      print("✅ Cycle Count: $cycleCount");
-
-
-      //==================================================
-      // 9. TANK STATUS
-      //==================================================
-
-      print("");
-      print("9️⃣ Reading Tank Status...");
-
-      final tankStatus =
-      await _bleService.readTankStatus(deviceId);
-
-      print("✅ Tank Status: ${tankStatus.name}");
-
-
-      //==================================================
-      // 10. DEVICE UUID
-      //==================================================
-      print("Waiting before reading Device UUID...");
-      await Future.delayed(const Duration(seconds: 1));
-      print("");
-      print("🔟 Reading Device UUID...");
-
-      final deviceUuid =
-      await _bleService.readDeviceUuid(deviceId);
-
-      print("✅ Device UUID: $deviceUuid");
-
-
-      //==================================================
-      // 11. FIRMWARE
-      //==================================================
-
-      print("");
-      print("1️⃣1️⃣ Reading Firmware Version...");
-
-      final firmware =
-      await _bleService.readFirmwareVersion(deviceId);
-
-      print("✅ Firmware: $firmware");
-
-
-      //==================================================
-      // 12. LOW BATTERY FLAG
-      //==================================================
-
-      print("");
-      print("1️⃣2️⃣ Reading Low Battery Flag...");
-
-      final lowBattery =
-      await _bleService.readLowBatteryFlag(deviceId);
-
-      print("✅ Low Battery: ${lowBattery.name}");
-
-
-      //==================================================
-      // PLANT LIBRARY
-      //==================================================
-
-      final libraryPlant =
-      PlantLibrary.getById(plantType);
-
-
-      //==================================================
-      // FINAL DATA
-      //==================================================
-
-      print("");
-      print("==================================================");
-      print("📦 RAW DATA RECEIVED FROM VIRA POT");
-      print("==================================================");
-
-      print("🪴 Plant Name       : $plantName");
-      print("🪴 Plant Type       : $plantType");
-
-      print("");
-
-      print("📅 Schedule");
-      print("   Days Mask        : $daysMask");
-      print("   Time Minutes     : $timeMinutes");
-      print("   Water Duration   : $waterDuration sec");
-
-      print("");
-
-      print("📊 Status");
-      print("   Battery          : $batteryLevel%");
-      print("   Last Watered     : $lastWatered");
-      print("   Cycle Count      : $cycleCount");
-      print("   Tank Status      : ${tankStatus.name}");
-      print("   Low Battery      : ${lowBattery.name}");
-
-      print("");
-
-      print("🔧 Device");
-      print("   Device UUID      : $deviceUuid");
-      print("   Firmware         : $firmware");
-
-      print("");
-
-      print("📚 Plant Library");
-      print("   Image            : ${libraryPlant?.image}");
-      print("   Category         : ${libraryPlant?.category}");
-      print("   Water Interval   : ${libraryPlant?.wateringIntervalDays}");
-
-      print("==================================================");
-
-
-      //==================================================
-      // CREATE POT MODEL
-      //==================================================
-
-      final pot = PotModel(
-        deviceId: _connectedDevice!.id,
-
-        //---------------- Plant ----------------//
-
-        plantType: plantType,
-        plantName: plantName,
-        plantImage: libraryPlant?.image ?? "",
-        wateringIntervalDays:
-        libraryPlant?.wateringIntervalDays ?? 0,
-
-        //---------------- Schedule ----------------//
-
-        daysMask: daysMask,
-        timeMinutes: timeMinutes,
-
-        // Temporarily removed from Vira hardware
-        wateringsPerDay: 0,
-
-        waterDuration: waterDuration,
-
-        //---------------- Status ----------------//
-
-        batteryLevel: batteryLevel,
-        tankStatus: tankStatus.index,
-        lastWatered: lastWatered,
-        cycleCount: cycleCount,
-        firmwareVersion: firmware,
-        lowBattery: lowBattery == LowBatteryFlag.low,
-
-        //---------------- App ----------------//
-
-        pairedAt: 0,
-        lastSynced:
-        DateTime.now().millisecondsSinceEpoch,
-      );
-
-
-      //==================================================
-      // FINAL RESULT
-      //==================================================
-
-      print("");
-      print("==================================================");
-      print("🧱 POT MODEL CREATED");
-      print("==================================================");
-      print(pot);
-      print("==================================================");
-
-      return pot;
+      return await _bleService.readCurrentPot(deviceId);
 
     } catch (e, stack) {
 
-      print("");
-      print("==================================================");
-      print("❌ READ CURRENT POT FAILED");
-      print("==================================================");
 
+      print("❌ PROVIDER - READ CURRENT POT FAILED");
       print("Error: $e");
 
-      print("");
       print("Stack Trace:");
       print(stack);
-
-      print("==================================================");
-
       return null;
     }
   }

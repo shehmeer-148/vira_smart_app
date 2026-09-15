@@ -91,8 +91,8 @@ class _DevicePairingScreenState extends State<DevicePairingScreen> {
                   }
 
                   return RefreshIndicator(
-                    onRefresh: (){
-                      return bleProvider.initialize();
+                    onRefresh: ()async{
+                      return await bleProvider.initializePairing();
                     },
                     child: ListView.builder(
                       itemCount: ble.devices.length,

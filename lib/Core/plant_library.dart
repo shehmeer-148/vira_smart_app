@@ -1,20 +1,4 @@
-// class PlantLibrary {
-//   static const Map<int, String> plants = {
-//     1: "Rose",
-//     2: "Tulip",
-//     3: "Money Plant",
-//     4: "Snake Plant",
-//     5: "Basil",
-//     6: "Peace Lily",
-//     7: "Monstera",
-//     8: "ZZ Plant",
-//     65535: "Custom",
-//   };
-//
-//   static String getName(int id) {
-//     return plants[id] ?? "Unknown";
-//   }
-// }
+
 
 import '../Data/Model_classes/plant_model.dart';
 import '../Util/helper_classes.dart';

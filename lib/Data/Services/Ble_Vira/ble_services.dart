@@ -1,6 +1,8 @@
 import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
 
 import '../../../Core/enums.dart';
+import '../../../Core/plant_library.dart';
+import '../../Model_classes/pot_model.dart';
 import 'ble_constants.dart';
 import 'ble_helper.dart';
 import 'ble_commands.dart';
@@ -180,6 +182,297 @@ class BleService {
 
     return timeMinutes;
   }
+  Future<PotModel?> readCurrentPot(String deviceId) async {
+    try {
+      print("");
+      print("==================================================");
+      print("📖 BLE SERVICE - READING CURRENT POT");
+      print("Device : $deviceId");
+      print("==================================================");
+
+      //==================================================
+      // 1. PLANT NAME
+      //==================================================
+
+      print("");
+      print("1️⃣ Reading Plant Name...");
+
+      final plantName =
+      await readPlantName(deviceId);
+
+      print("✅ Plant Name: $plantName");
+
+
+      //==================================================
+      // 2. PLANT TYPE
+      //==================================================
+
+      print("");
+      print("2️⃣ Reading Plant Type...");
+
+      final plantType =
+      await readPlantType(deviceId);
+
+      print("✅ Plant Type: $plantType");
+
+
+      //==================================================
+      // 3. DAYS MASK
+      //==================================================
+
+      print("");
+      print("3️⃣ Reading Schedule Days Mask...");
+
+      final daysMask =
+      await readScheduleDaysMask(deviceId);
+
+      print("✅ Days Mask: $daysMask");
+
+
+      //==================================================
+      // 4. SCHEDULE TIME
+      //==================================================
+
+      print("");
+      print("4️⃣ Reading Schedule Time...");
+
+      final timeMinutes =
+      await readScheduleTime(deviceId);
+
+      print("✅ Time Minutes: $timeMinutes");
+
+
+      //==================================================
+      // 5. WATER DURATION
+      //==================================================
+
+      print("");
+      print("5️⃣ Reading Water Duration...");
+
+      final waterDuration =
+      await readWaterDuration(deviceId);
+
+      print("✅ Water Duration: $waterDuration seconds");
+
+
+      //==================================================
+      // 6. BATTERY
+      //==================================================
+
+      print("");
+      print("6️⃣ Reading Battery Level...");
+
+      final batteryLevel =
+      await readBatteryLevel(deviceId);
+
+      print("✅ Battery: $batteryLevel%");
+
+
+      //==================================================
+      // 7. LAST WATERED
+      //==================================================
+
+      print("");
+      print("7️⃣ Reading Last Watered...");
+
+      final lastWatered =
+      await readLastWatered(deviceId);
+
+      print("✅ Last Watered: $lastWatered");
+
+
+      //==================================================
+      // 8. CYCLE COUNT
+      //==================================================
+
+      print("");
+      print("8️⃣ Reading Cycle Count...");
+
+      final cycleCount =
+      await readCycleCount(deviceId);
+
+      print("✅ Cycle Count: $cycleCount");
+
+
+      //==================================================
+      // 9. TANK STATUS
+      //==================================================
+
+      print("");
+      print("9️⃣ Reading Tank Status...");
+
+      final tankStatus =
+      await readTankStatus(deviceId);
+
+      print("✅ Tank Status: ${tankStatus.name}");
+
+
+      //==================================================
+      // 10. DEVICE UUID
+      //==================================================
+
+      print("");
+      print("🔟 Reading Device UUID...");
+
+      final deviceUuid =
+      await readDeviceUuid(deviceId);
+
+      print("✅ Device UUID: $deviceUuid");
+
+
+      //==================================================
+      // 11. FIRMWARE
+      //==================================================
+
+      print("");
+      print("1️⃣1️⃣ Reading Firmware Version...");
+
+      final firmware =
+      await readFirmwareVersion(deviceId);
+
+      print("✅ Firmware: $firmware");
+
+
+      //==================================================
+      // 12. LOW BATTERY FLAG
+      //==================================================
+
+      print("");
+      print("1️⃣2️⃣ Reading Low Battery Flag...");
+
+      final lowBattery =
+      await readLowBatteryFlag(deviceId);
+
+      print("✅ Low Battery: ${lowBattery.name}");
+
+
+      //==================================================
+      // PLANT LIBRARY
+      //==================================================
+
+      final libraryPlant =
+      PlantLibrary.getById(plantType);
+
+
+      //==================================================
+      // FINAL DATA
+      //==================================================
+
+      print("");
+      print("==================================================");
+      print("📦 RAW DATA RECEIVED FROM VIRA POT");
+      print("==================================================");
+
+      print("🪴 Plant Name       : $plantName");
+      print("🪴 Plant Type       : $plantType");
+
+      print("");
+
+      print("📅 Schedule");
+      print("   Days Mask        : $daysMask");
+      print("   Time Minutes     : $timeMinutes");
+      print("   Water Duration   : $waterDuration sec");
+
+      print("");
+
+      print("📊 Status");
+      print("   Battery          : $batteryLevel%");
+      print("   Last Watered     : $lastWatered");
+      print("   Cycle Count      : $cycleCount");
+      print("   Tank Status      : ${tankStatus.name}");
+      print("   Low Battery      : ${lowBattery.name}");
+
+      print("");
+
+      print("🔧 Device");
+      print("   Device UUID      : $deviceUuid");
+      print("   Firmware         : $firmware");
+
+      print("");
+
+      print("📚 Plant Library");
+      print("   Image            : ${libraryPlant?.image}");
+      print("   Category         : ${libraryPlant?.category}");
+      print("   Water Interval   : ${libraryPlant?.wateringIntervalDays}");
+
+      print("==================================================");
+
+
+      //==================================================
+      // CREATE POT MODEL
+      //==================================================
+
+      final pot = PotModel(
+        deviceId: deviceId,
+
+        //---------------- Plant ----------------//
+
+        plantType: plantType,
+        plantName: plantName,
+        plantImage: libraryPlant?.image ?? "",
+        wateringIntervalDays:
+        libraryPlant?.wateringIntervalDays ?? 0,
+
+        //---------------- Schedule ----------------//
+
+        daysMask: daysMask,
+        timeMinutes: timeMinutes,
+
+        // Temporarily removed from Vira hardware
+        wateringsPerDay: 0,
+
+        waterDuration: waterDuration,
+
+        //---------------- Status ----------------//
+
+        batteryLevel: batteryLevel,
+        tankStatus: tankStatus.index,
+        lastWatered: lastWatered,
+        cycleCount: cycleCount,
+        firmwareVersion: firmware,
+        lowBattery: lowBattery == LowBatteryFlag.low,
+
+        //---------------- App ----------------//
+
+        pairedAt: 0,
+        lastSynced:
+        DateTime.now().millisecondsSinceEpoch,
+      );
+
+
+      //==================================================
+      // FINAL RESULT
+      //==================================================
+
+      print("");
+      print("==================================================");
+      print("🧱 POT MODEL CREATED BY BLE SERVICE");
+      print("==================================================");
+      print(pot);
+      print("==================================================");
+
+      return pot;
+
+    } catch (e, stack) {
+
+      print("");
+      print("==================================================");
+      print("❌ BLE SERVICE - READ CURRENT POT FAILED");
+      print("==================================================");
+
+      print("Device: $deviceId");
+      print("Error: $e");
+
+      print("");
+      print("Stack Trace:");
+      print(stack);
+
+      print("==================================================");
+
+      return null;
+    }
+  }
+
 
 
 
