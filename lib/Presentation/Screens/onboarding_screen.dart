@@ -899,7 +899,7 @@ import 'package:vira_planter_app/Presentation/Screens/pairing_scanning%20_screen
 import '../../Core/app_colors.dart';
 import '../../Core/app_spacing.dart';
 import '../../Util/helper_dialogs.dart';
-import '../../temp_screen.dart';
+
 import '../Providers/ble_provider.dart';
 
 class OnboardingPage extends StatefulWidget {

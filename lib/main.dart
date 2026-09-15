@@ -7,10 +7,13 @@ import 'package:vira_planter_app/Presentation/Providers/plant_provider.dart';
 import 'package:vira_planter_app/Presentation/Providers/pot_provider.dart';
 import 'package:vira_planter_app/Presentation/Screens/intro_screens.dart';
 import 'package:vira_planter_app/Presentation/Screens/onboarding_screen.dart';
+import 'package:vira_planter_app/temp_screen.dart';
 
 import 'Core/app_colors.dart';
 import 'Core/app_theme.dart';
 import 'Data/Services/Database/database_helper.dart';
+import 'Data/Services/Native_Services/native_service.dart';
+import 'Presentation/Providers/Native_Provider/native_provider.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,6 +33,8 @@ void main() {
           ),
           ChangeNotifierProvider(create: (context)=>PlantProvider()),
           ChangeNotifierProvider(create: (context)=> PotProvider(DatabaseHelper.instance)),
+
+          ChangeNotifierProvider(create: (_) => NativeProvider(NativeService(),),),
         ],
 
         child: ViraPlantraApp(),
@@ -50,10 +55,9 @@ class ViraPlantraApp extends StatelessWidget {
       child: MaterialApp(
         title: 'Vira Plantra',
         debugShowCheckedModeBanner: false,
-
         theme: AppTheme.lightTheme,
-
-        home: const OnboardingScreens(),
+        //home: const OnboardingScreens(),
+        home: const NativeTestScreen(),
       ),
     );
   }
