@@ -10,8 +10,16 @@ class NativeProvider extends ChangeNotifier {
   String _message = '';
   String get message => _message;
 
+  int _battery = 0;
+  int get battery => _battery;
+
   Future<void> getNativeMessage() async {
     _message = await _nativeService.getNativeMessage();
+    notifyListeners();
+  }
+
+  Future<void> getBatteryInfo() async {
+    _battery = await _nativeService.getBatteryInfo();
     notifyListeners();
   }
 }

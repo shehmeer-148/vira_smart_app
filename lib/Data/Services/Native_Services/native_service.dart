@@ -11,4 +11,11 @@ class NativeService {
 
     return result ?? '';
   }
+  Future<int> getBatteryInfo() async {
+    final result = await _channel.invokeMethod<int>(
+      'getBatteryInfo',
+    );
+
+    return result ?? 0;
+  }
 }

@@ -26,10 +26,12 @@ class NativeTestScreen extends StatelessWidget {
             ),
 
             const SizedBox(height: 20),
+            Text("Battery Value: ${provider.battery}" ),
 
             ElevatedButton(
               onPressed: () {
                 context.read<NativeProvider>().getNativeMessage();
+                context.read<NativeProvider>().getBatteryInfo();
               },
               child: const Text('Call Kotlin'),
             ),

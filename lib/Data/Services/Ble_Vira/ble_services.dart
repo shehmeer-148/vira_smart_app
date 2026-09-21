@@ -846,7 +846,6 @@ class BleService {
       withServices: [
         BleConstants.serviceStatus,
         Uuid.parse("0000ffc0"),
-
       ],
       scanMode: ScanMode.lowLatency,
     );

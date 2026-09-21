@@ -56,8 +56,8 @@ class ViraPlantraApp extends StatelessWidget {
         title: 'Vira Plantra',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
-        //home: const OnboardingScreens(),
-        home: const NativeTestScreen(),
+        home: const OnboardingScreens(),
+        //home: const NativeTestScreen(),
       ),
     );
   }
