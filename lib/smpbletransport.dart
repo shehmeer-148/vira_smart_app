@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
 import 'package:mcumgr_dart/mcumgr_dart.dart';
+import 'package:http/http.dart' as http;
+
 
 class SmpBleTransport implements SmpTransport {
   SmpBleTransport({
@@ -134,6 +137,70 @@ class SmpBleTransport implements SmpTransport {
       print('📏 Maximum ATT payload: ${mtu - 3} bytes');
     } catch (e) {
       print('❌ MTU request failed: $e');
+    }
+  }
+
+  /////////////////////////////////////////////////////////////////
+
+}
+
+
+class FirmwareService {
+  static const String latestReleaseUrl =
+      'https://api.github.com/repos/Hamas888/Planter/releases/latest';
+
+  Future<String?> getLatestVersion() async {
+    try {
+      print('========================================');
+      print('GITHUB FIRMWARE CHECK STARTED');
+      print('URL: $latestReleaseUrl');
+
+      final response = await http.get(
+        Uri.parse(latestReleaseUrl),
+        headers: {
+          'Accept': 'application/vnd.github+json',
+        },
+      );
+
+      print('GitHub response status: ${response.statusCode}');
+      print('GitHub response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        print('GitHub request successful');
+
+        final data = jsonDecode(response.body);
+
+        print('Release tag: ${data['tag_name']}');
+        print('Release name: ${data['name']}');
+
+        final tagName = data['tag_name'] as String?;
+
+        if (tagName == null) {
+          print('ERROR: tag_name is missing');
+          return null;
+        }
+
+        final version = tagName.replaceFirst('v', '');
+
+        print('Latest firmware version: $version');
+        print('GITHUB FIRMWARE CHECK COMPLETED');
+        print('========================================');
+
+        return version;
+      }
+
+      print('ERROR: GitHub request failed');
+      print('Status code: ${response.statusCode}');
+      print('Response: ${response.body}');
+      print('========================================');
+
+      return null;
+    } catch (e) {
+      print('ERROR: GitHub request exception');
+      print('Exception: $e');
+      print('========================================');
+
+      return null;
     }
   }
 }

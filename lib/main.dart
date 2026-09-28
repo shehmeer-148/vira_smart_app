@@ -7,6 +7,7 @@ import 'package:vira_planter_app/Presentation/Providers/plant_provider.dart';
 import 'package:vira_planter_app/Presentation/Providers/pot_provider.dart';
 import 'package:vira_planter_app/Presentation/Screens/intro_screens.dart';
 import 'package:vira_planter_app/Presentation/Screens/onboarding_screen.dart';
+import 'package:vira_planter_app/firmware_download_test_screen.dart';
 import 'package:vira_planter_app/temp2%20screen.dart';
 
 import 'Core/app_colors.dart';
@@ -55,7 +56,8 @@ class ViraPlantraApp extends StatelessWidget {
         theme: AppTheme.lightTheme,
 
        // home: const OnboardingScreens(),
-        home: const BleScanScreen(),
+        // home: const BleScanScreen(),
+        home: FirmwareTestScreen(),
       ),
     );
   }
