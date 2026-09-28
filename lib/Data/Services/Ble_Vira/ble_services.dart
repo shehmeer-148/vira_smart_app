@@ -844,8 +844,8 @@ class BleService {
   Stream<DiscoveredDevice> scan() {
     return ble.scanForDevices(
       withServices: [
-        BleConstants.serviceStatus,
-        Uuid.parse("0000ffc0"),
+        // BleConstants.serviceStatus,
+        // Uuid.parse("0000ffc0"),
 
       ],
       scanMode: ScanMode.lowLatency,
