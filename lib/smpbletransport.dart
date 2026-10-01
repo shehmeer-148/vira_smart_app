@@ -145,58 +145,194 @@ class SmpBleTransport implements SmpTransport {
 }
 
 
+// class FirmwareService {
+//   static const String latestReleaseUrl =
+//       'https://api.github.com/repos/Hamas888/Planter/releases/latest';
+//
+//   Future<String?> getLatestVersion() async {
+//     try {
+//       print('========================================');
+//       print('GITHUB FIRMWARE CHECK STARTED');
+//       print('URL: $latestReleaseUrl');
+//
+//       final response = await http.get(
+//         Uri.parse(latestReleaseUrl),
+//         headers: {
+//           'Authorization': 'Bearer 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',
+//           'Accept': 'application/vnd.github+json',
+//         },
+//       );
+//
+//
+//       print('GitHub response status: ${response.statusCode}');
+//       print('GitHub response body: ${response.body}');
+//
+//       if (response.statusCode == 200) {
+//         print('GitHub request successful');
+//
+//         final data = jsonDecode(response.body);
+//
+//         print('Release tag: ${data['tag_name']}');
+//         print('Release name: ${data['name']}');
+//
+//         final tagName = data['tag_name'] as String?;
+//
+//         if (tagName == null) {
+//           print('ERROR: tag_name is missing');
+//           return null;
+//         }
+//
+//         final version = tagName.replaceFirst('v', '');
+//
+//         print('Latest firmware version: $version');
+//
+//         // Let's inspect the assets too, but we won't download anything yet.
+//         final assets = data['assets'] as List<dynamic>?;
+//
+//         print('Number of assets: ${assets?.length ?? 0}');
+//
+//         if (assets != null) {
+//           for (final asset in assets) {
+//             print('Asset name: ${asset['name']}');
+//             print('Asset ID: ${asset['id']}');
+//           }
+//         }
+//
+//         print('GITHUB FIRMWARE CHECK COMPLETED');
+//         print('========================================');
+//
+//         return version;
+//       }
+//
+//       print('ERROR: GitHub request failed');
+//       print('Status code: ${response.statusCode}');
+//       print('Response: ${response.body}');
+//       print('========================================');
+//
+//       return null;
+//     } catch (e) {
+//       print('ERROR: GitHub request exception');
+//       print('Exception: $e');
+//       print('========================================');
+//
+//       return null;
+//     }
+//   }
+// }
+
 class FirmwareService {
   static const String latestReleaseUrl =
       'https://api.github.com/repos/Hamas888/Planter/releases/latest';
 
-  Future<String?> getLatestVersion() async {
+  static const String githubToken = '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';
+
+  // STEP 1:
+  // Get latest release and find the firmware asset ID.
+  Future<int?> getLatestAssetId() async {
     try {
       print('========================================');
-      print('GITHUB FIRMWARE CHECK STARTED');
+      print('GITHUB RELEASE CHECK STARTED');
       print('URL: $latestReleaseUrl');
 
       final response = await http.get(
         Uri.parse(latestReleaseUrl),
         headers: {
+          'Authorization': 'Bearer $githubToken',
           'Accept': 'application/vnd.github+json',
         },
       );
 
       print('GitHub response status: ${response.statusCode}');
-      print('GitHub response body: ${response.body}');
 
-      if (response.statusCode == 200) {
-        print('GitHub request successful');
-
-        final data = jsonDecode(response.body);
-
-        print('Release tag: ${data['tag_name']}');
-        print('Release name: ${data['name']}');
-
-        final tagName = data['tag_name'] as String?;
-
-        if (tagName == null) {
-          print('ERROR: tag_name is missing');
-          return null;
-        }
-
-        final version = tagName.replaceFirst('v', '');
-
-        print('Latest firmware version: $version');
-        print('GITHUB FIRMWARE CHECK COMPLETED');
-        print('========================================');
-
-        return version;
+      if (response.statusCode != 200) {
+        print('ERROR: GitHub request failed');
+        print('Response: ${response.body}');
+        return null;
       }
 
-      print('ERROR: GitHub request failed');
+      final data = jsonDecode(response.body);
+
+      print('GitHub request successful');
+      print('Release tag: ${data['tag_name']}');
+      print('Release name: ${data['name']}');
+
+      final assets = data['assets'] as List<dynamic>?;
+
+      if (assets == null || assets.isEmpty) {
+        print('ERROR: No assets found in release');
+        return null;
+      }
+
+      // Find the .bin firmware asset
+      for (final asset in assets) {
+        final assetName = asset['name'] as String?;
+
+        print('Asset name: $assetName');
+        print('Asset ID: ${asset['id']}');
+
+        if (assetName != null && assetName.endsWith('.bin')) {
+          final assetId = asset['id'] as int;
+
+          print('Firmware asset found!');
+          print('Firmware asset ID: $assetId');
+          print('========================================');
+
+          return assetId;
+        }
+      }
+
+      print('ERROR: No .bin firmware asset found');
+      print('========================================');
+
+      return null;
+    } catch (e) {
+      print('ERROR: GitHub release exception');
+      print('Exception: $e');
+      print('========================================');
+
+      return null;
+    }
+  }
+
+  // STEP 2:
+  // Download the actual firmware using the asset ID.
+  Future<List<int>?> downloadFirmware(int assetId) async {
+    final downloadUrl =
+        'https://api.github.com/repos/Hamas888/Planter/releases/assets/$assetId';
+
+    try {
+      print('========================================');
+      print('FIRMWARE DOWNLOAD STARTED');
+      print('Asset ID: $assetId');
+      print('URL: $downloadUrl');
+
+      final response = await http.get(
+        Uri.parse(downloadUrl),
+        headers: {
+          'Authorization': 'Bearer $githubToken',
+          'Accept': 'application/octet-stream',
+        },
+      );
+
+      print('Download response status: ${response.statusCode}');
+      print('Downloaded bytes: ${response.bodyBytes.length}');
+
+      if (response.statusCode == 200) {
+        print('FIRMWARE DOWNLOAD SUCCESSFUL');
+        print('Firmware size: ${response.bodyBytes.length} bytes');
+        print('========================================');
+
+        return response.bodyBytes;
+      }
+
+      print('ERROR: Firmware download failed');
       print('Status code: ${response.statusCode}');
       print('Response: ${response.body}');
       print('========================================');
 
       return null;
     } catch (e) {
-      print('ERROR: GitHub request exception');
+      print('ERROR: Firmware download exception');
       print('Exception: $e');
       print('========================================');
 
