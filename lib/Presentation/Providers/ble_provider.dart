@@ -13,12 +13,12 @@ import 'dart:io';
 import 'package:permission_handler/permission_handler.dart';
 import '../../Data/Services/Database/database_helper.dart';
 import '../../Data/Model_classes/plant_schedule_model.dart';
+import '../../smp_test.dart';
 
 class BleProvider extends ChangeNotifier {
-  BleProvider(this._bleService, this._database);
+  BleProvider(this._bleService);
 
   final BleService _bleService;
-  final DatabaseHelper _database;
 
   bool _isConnecting = false;
 
@@ -80,23 +80,52 @@ class BleProvider extends ChangeNotifier {
   StreamSubscription<ConnectionStateUpdate>? _connectionSubscription;
   StreamSubscription<int>? _batterySubscription;
 
-  /// LOCAL DATABASE
-  
-  bool _isSetupFinished = false;
-  bool get isSetupFinished => _isSetupFinished;
+  /// TEST DATA
+  // ============================================================
+// TEST APP CONFIGURATION DATA
+// ============================================================
 
-  /// AUTO DASHBOARD SCANNING
+  int? _plantType;
+  String? _plantName;
 
-  bool _isAutoScanning = false;
-  bool get isAutoScanning => _isAutoScanning;
-  bool _isAutoProcessing = false;
-  final Queue<PotModel> _autoPotQueue = Queue<PotModel>();
-  final Set<String> _autoSeenPots = {};
-  final Set<String> _queuedAutoPotIds = {};
-  Timer? _autoScanTimer;
-  final Set<String> _autoDetectedThisCycle = {};
+  int? _daysMask;
+  int? _timeMinutes;
+  int? _waterDuration;
+
+// Live Status
+  int _batteryLevel = 0;
+  int _tankStatus = 0;
+  int _lastWatered = 0;
+  int _cycleCount = 0;
+  bool _lowBattery = false;
+  String _firmwareVersion = 'Unknown';
+
+  int? get plantType => _plantType;
+  String? get plantName => _plantName;
+
+  int? get daysMask => _daysMask;
+  int? get timeMinutes => _timeMinutes;
+  int? get waterDuration => _waterDuration;
+
+  int get batteryLevel => _batteryLevel;
+  int get tankStatus => _tankStatus;
+  int get lastWatered => _lastWatered;
+  int get cycleCount => _cycleCount;
+  bool get lowBattery => _lowBattery;
+  String get firmwareVersion => _firmwareVersion;
+
+  bool _isReadingConfiguration = false;
+  bool get isReadingConfiguration => _isReadingConfiguration;
+
+  bool _hasWrittenConfiguration = false;
+  bool get hasWrittenConfiguration => _hasWrittenConfiguration;
+
+  bool _isDfuUpdating = false;
+  bool get isDfuUpdating => _isDfuUpdating;
 
   // ====================== BLUETOOTH PAIRING & SCANNING FUNCTIONS =====================//
+  // Tracks when each device was last seen
+  final Map<String, DateTime> _lastSeen = {};
 
   /// INITIALIZE
   Future<void> initialize() async {
@@ -235,110 +264,66 @@ class BleProvider extends ChangeNotifier {
     return (await Permission.bluetooth.request())
         .isGranted;
   }
+
   /// SCAN
   Future<void> startScan() async {
-    // --------------------------------------------------
-    // Prevent duplicate scans
-    // --------------------------------------------------
-
-    if (isScanning) {
-      print("⚠️ Scan already running");
-      return;
-    }
-
-    // --------------------------------------------------
-    // Do not scan while connecting / connected
-    // --------------------------------------------------
-
-    if (isConnecting || isConnected) {
-      print("⚠️ Cannot start scan while connected/connecting");
-      return;
-    }
+    if (isScanning) return;
+    if (isConnecting || isConnected) return;
 
     print("========== START SCAN ==========");
-
-    // --------------------------------------------------
-    // Cancel any previous scan subscription
-    // --------------------------------------------------
 
     await _scanSubscription?.cancel();
     _scanSubscription = null;
 
-    // --------------------------------------------------
-    // Clear previous devices
-    // --------------------------------------------------
-
     _devices.clear();
+    _lastSeen.clear(); // Clear timestamps
 
-    // --------------------------------------------------
-    // Update state
-    // --------------------------------------------------
-
-    _connectionState =
-        BleConnectionState.scanning;
-
+    _connectionState = BleConnectionState.scanning;
     notifyListeners();
 
-    // --------------------------------------------------
-    // Start BLE scan
-    // --------------------------------------------------
+    _scanSubscription = _bleService.scan().listen(
+          (device) {
+        // Update or Add timestamp
+        _lastSeen[device.id] = DateTime.now();
 
-    print("🔍 Starting BLE scan...");
+        // If new device, add to list
+        if (!_devices.any((d) => d.id == device.id)) {
+          print("📡 Device found: ${device.name.isNotEmpty ? device.name : "Unknown"} (${device.id})");
+          _devices.add(device);
+          notifyListeners();
+        }
 
-    _scanSubscription =
-        _bleService.scan().listen(
-              (device) {
+        // --- STALE DEVICE CLEANUP ---
+        // Remove devices not seen in the last 10 seconds
+        final now = DateTime.now();
+        final staleThreshold = const Duration(seconds: 10);
 
-            // Avoid duplicate devices
-            if (_devices.any((d) => d.id == device.id)) {
-              return;
-            }
+        bool changed = false;
+        _devices.removeWhere((d) {
+          final lastSeen = _lastSeen[d.id];
+          if (lastSeen != null && now.difference(lastSeen) > staleThreshold) {
+            print("🗑️ Removing stale device: ${d.id}");
+            _lastSeen.remove(d.id);
+            changed = true;
+            return true;
+          }
+          return false;
+        });
 
-            print(
-              "📡 Device found: "
-                  "${device.name.isNotEmpty ? device.name : "Unknown"} "
-                  "(${device.id})",
-            );
-
-            _devices.add(device);
-
-            notifyListeners();
-          },
-
-          onError: (error) {
-
-            print("❌ BLE scan error: $error");
-
-            _scanSubscription = null;
-
-            if (_connectionState ==
-                BleConnectionState.scanning) {
-
-              _connectionState =
-                  BleConnectionState.disconnected;
-
-              notifyListeners();
-            }
-          },
-
-          onDone: () {
-
-            print("🛑 BLE scan stream completed");
-
-            _scanSubscription = null;
-
-            if (_connectionState ==
-                BleConnectionState.scanning) {
-
-              _connectionState =
-                  BleConnectionState.disconnected;
-
-              notifyListeners();
-            }
-          },
-        );
-
-    print("================================");
+        if (changed) notifyListeners();
+      },
+      onError: (error) {
+        print("❌ BLE scan error: $error");
+        _scanSubscription = null;
+        _connectionState = BleConnectionState.disconnected;
+        notifyListeners();
+      },
+      onDone: () {
+        _scanSubscription = null;
+        _connectionState = BleConnectionState.disconnected;
+        notifyListeners();
+      },
+    );
   }
   /// STOP
   Future<void> stopScan() async {
@@ -748,940 +733,7 @@ class BleProvider extends ChangeNotifier {
     print("==================================");
   }
   /// CONNECT TO SAVED POT
-  Future<ConnectResult> connectToPot(PotModel pot) async {
-    print("");
-    print("=================================================");
-    print("CONNECT TO SAVED POT");
-    print("=================================================");
-    print("Plant Name : ${pot.plantName}");
-    print("Device ID  : ${pot.deviceId}");
-    print("=================================================");
 
-    // --------------------------------------------------
-    // Already connected to this pot
-    // --------------------------------------------------
-
-    if (_connectedDevice?.id == pot.deviceId &&
-        _connectionState == BleConnectionState.connected) {
-      print("🟢 Already connected to this pot");
-
-      return ConnectResult.connected;
-    }
-
-    // --------------------------------------------------
-    // Another connection is already in progress
-    // --------------------------------------------------
-
-    if (_isConnecting) {
-      print("⚠️ Another BLE connection is already in progress");
-      return ConnectResult.alreadyConnecting;
-    }
-
-    // --------------------------------------------------
-    // Bluetooth must be ready
-    // --------------------------------------------------
-
-    if (_bleStatus != BleStatus.ready) {
-      print("❌ Bluetooth is not ready");
-      print("Current BLE status: $_bleStatus");
-      return ConnectResult.bluetoothNotReady;
-    }
-
-    try {
-
-      // ------------------------------------------------
-      // Stop any active scan
-      // ------------------------------------------------
-
-      print("🛑 Stopping previous scan...");
-      await stopScan();
-
-      // ------------------------------------------------
-      // Disconnect currently connected pot
-      // ------------------------------------------------
-
-      if (_connectedDevice != null) {
-        print("🔌 Another pot is connected");
-        print("Disconnecting current pot...");
-
-        await disconnect();
-
-        // Give Android BLE stack a moment
-        await Future.delayed(
-          const Duration(milliseconds: 300),
-        );
-      }
-
-      // ------------------------------------------------
-      // Prepare fresh scan
-      // ------------------------------------------------
-
-      _devices.clear();
-      _connectionState = BleConnectionState.scanning;
-      _connectingPotId = pot.deviceId;
-
-      notifyListeners();
-
-      print("");
-      print("🔍 Starting BLE scan...");
-      print("Looking for device:");
-      print("   ${pot.deviceId}");
-
-      // ------------------------------------------------
-      // Completer
-      // ------------------------------------------------
-
-      final completer = Completer<DiscoveredDevice?>();
-
-      // ------------------------------------------------
-      // Start scan
-      // ------------------------------------------------
-
-      await _scanSubscription?.cancel();
-
-      _scanSubscription =
-          _bleService.scan().listen(
-                (device) {
-
-              print("");
-              print("📡 BLE DEVICE DISCOVERED");
-              print("Name : ${device.name}");
-              print("ID   : ${device.id}");
-              print("RSSI : ${device.rssi}");
-
-              // --------------------------------------------
-              // Add to discovered devices
-              // --------------------------------------------
-
-              if (_devices.every(
-                    (d) => d.id != device.id,
-              )) {
-                _devices.add(device);
-                notifyListeners();
-              }
-
-              // --------------------------------------------
-              // Check target device
-              // --------------------------------------------
-
-              if (device.id == pot.deviceId) {
-                print("");
-                print("🎯 TARGET POT FOUND!");
-                print("Plant Name : ${pot.plantName}");
-                print("Device ID  : ${device.id}");
-
-                if (!completer.isCompleted) {
-                  completer.complete(device);
-                }
-              }
-            },
-            onError: (error) {
-              print("");
-              print("❌ BLE SCAN ERROR");
-              print(error);
-
-              if (!completer.isCompleted) {
-                completer.complete(null);
-              }
-            },
-          );
-
-      // ------------------------------------------------
-      // Wait for target pot
-      // ------------------------------------------------
-
-      print("");
-      print("⏳ Waiting for target pot...");
-
-      final device =
-      await completer.future.timeout(
-        const Duration(seconds: 15),
-        onTimeout: () {
-          print("");
-          print("⏰ POT DISCOVERY TIMEOUT");
-          print("Device ID: ${pot.deviceId}");
-
-          return null;
-        },
-      );
-
-      // ------------------------------------------------
-      // Target not found
-      // ------------------------------------------------
-
-      if (device == null) {
-        print("");
-        print("❌ TARGET POT NOT FOUND");
-
-        await stopScan();
-
-        _connectionState =
-            BleConnectionState.disconnected;
-        _connectingPotId = null;
-
-        notifyListeners();
-
-        return ConnectResult.deviceNotFound;
-      }
-
-      // ------------------------------------------------
-      // Target found → stop scanning
-      // ------------------------------------------------
-
-      print("");
-      print("🛑 Target pot found");
-      print("Stopping scan...");
-
-      await stopScan();
-
-      // ------------------------------------------------
-      // Store actual discovered device
-      // ------------------------------------------------
-
-      _selectedDevice = device;
-
-      print("");
-      print("✅ Target device selected");
-      print("Name : ${device.name}");
-      print("ID   : ${device.id}");
-      print("RSSI : ${device.rssi}");
-
-      // ------------------------------------------------
-      // Connect using existing connect()
-      // ------------------------------------------------
-
-      print("");
-      print("🔗 Calling connect()...");
-
-      final connected =
-      await connect();
-
-      // ------------------------------------------------
-      // Result
-      // ------------------------------------------------
-
-      if (connected) {
-        print("");
-        print("=================================================");
-        print("🟢 POT CONNECTED SUCCESSFULLY");
-        print("=================================================");
-        print("Plant Name : ${pot.plantName}");
-        print("Device ID  : ${pot.deviceId}");
-        print("=================================================");
-
-        // ---------------------------------------------
-        // Read VIRA values and save to database
-        // ---------------------------------------------
-
-        final synced = await syncConnectedPotToDatabase();
-
-        if (!synced) {
-          print("⚠️ Pot connected but sync failed");
-        } else {
-          print("✅ Pot connected and database synced");
-        }
-        _connectingPotId = null;
-        notifyListeners();
-
-        return ConnectResult.connected;
-      }
-
-      print("");
-      print("=================================================");
-      print("🔴 POT CONNECTION FAILED");
-      print("=================================================");
-      print("Plant Name : ${pot.plantName}");
-      print("Device ID  : ${pot.deviceId}");
-      print("=================================================");
-      _connectingPotId = null;
-      notifyListeners();
-
-      return ConnectResult.connectionFailed;
-
-    } catch (e, stack) {
-      print("");
-      print("=================================================");
-      print("❌ CONNECT TO POT EXCEPTION");
-      print("=================================================");
-
-      print("Plant Name : ${pot.plantName}");
-      print("Device ID  : ${pot.deviceId}");
-
-      print("");
-      print("Error:");
-      print(e);
-
-      print("");
-      print("Stack:");
-      print(stack);
-
-      // ------------------------------------------------
-      // Cleanup
-      // ------------------------------------------------
-
-      await stopScan();
-
-      _connectedDevice = null;
-      _selectedDevice = null;
-      _connectingPotId = null;
-
-      _isConnecting = false;
-
-      _connectionState =
-          BleConnectionState.disconnected;
-
-      notifyListeners();
-
-      return ConnectResult.connectionFailed;
-    }
-  }
-
-  /// CONNECT AUTOMATICALLY IN DASHBOARD PAGE
-  Future<void> startDashboardAutoScan(
-      List<PotModel> savedPots,
-      ) async {
-    debugPrint('');
-    debugPrint('========== DASHBOARD AUTO SCAN START ==========');
-
-    debugPrint(
-      '[AUTO SCAN] isAutoScanning: $_isAutoScanning',
-    );
-
-    debugPrint(
-      '[AUTO SCAN] Saved pots count: ${savedPots.length}',
-    );
-
-    debugPrint(
-      '[AUTO SCAN] BLE status: $_bleStatus',
-    );
-
-    if (_isAutoScanning) {
-      debugPrint(
-        '[AUTO SCAN] Already running → RETURN',
-      );
-      return;
-    }
-
-    if (savedPots.isEmpty) {
-      debugPrint(
-        '[AUTO SCAN] No saved pots found → RETURN',
-      );
-      return;
-    }
-
-    if (_bleStatus != BleStatus.ready) {
-      debugPrint(
-        '[AUTO SCAN] BLE is not ready → RETURN',
-      );
-      return;
-    }
-
-    for (final pot in savedPots) {
-      debugPrint(
-        '[AUTO SCAN] Saved pot → ${pot.deviceId}',
-      );
-    }
-
-    _isAutoScanning = true;
-
-    debugPrint(
-      '[AUTO SCAN] Auto scanning enabled',
-    );
-
-    notifyListeners();
-
-    debugPrint(
-      '[AUTO SCAN] Starting first scan cycle...',
-    );
-
-    await _runDashboardScanCycle(savedPots);
-
-    debugPrint(
-      '[AUTO SCAN] startDashboardAutoScan() finished',
-    );
-
-    debugPrint('==============================================');
-  }
-  Future<void> _runDashboardScanCycle(
-      List<PotModel> savedPots,
-      ) async {
-    debugPrint('');
-    debugPrint('========== AUTO SCAN CYCLE ==========');
-
-    debugPrint(
-      '[AUTO SCAN] isAutoScanning: $_isAutoScanning',
-    );
-
-    debugPrint(
-      '[AUTO SCAN] isAutoProcessing: $_isAutoProcessing',
-    );
-
-    if (!_isAutoScanning) {
-      debugPrint(
-        '[AUTO SCAN] Auto scanning disabled → RETURN',
-      );
-      return;
-    }
-
-    if (_isAutoProcessing) {
-      debugPrint(
-        '[AUTO SCAN] Another pot is currently processing → RETURN',
-      );
-      return;
-    }
-
-    debugPrint(
-      '[AUTO SCAN] Stopping any previous scan...',
-    );
-
-    await stopScan();
-
-    debugPrint(
-      '[AUTO SCAN] Previous scan stopped',
-    );
-
-    _devices.clear();
-
-    debugPrint(
-      '[AUTO SCAN] Discovered devices list cleared',
-    );
-
-    _connectionState = BleConnectionState.scanning;
-
-    debugPrint(
-      '[AUTO SCAN] Connection state → SCANNING',
-    );
-
-    notifyListeners();
-
-    debugPrint(
-      '[AUTO SCAN] Starting BLE scan...',
-    );
-
-    _scanSubscription = _bleService.scan().listen(
-          (device) {
-        debugPrint(
-          '[AUTO SCAN] Device discovered → '
-              '${device.name} | ${device.id}',
-        );
-
-        _handleDashboardDiscoveredDevice(
-          device,
-          savedPots,
-        );
-      },
-      onError: (error) {
-        debugPrint(
-          '[AUTO SCAN] ❌ Scan error: $error',
-        );
-
-        debugPrint(
-          '[AUTO SCAN] Finishing scan cycle because of error...',
-        );
-
-        _finishDashboardScanCycle(savedPots);
-      },
-      onDone: () {
-        debugPrint(
-          '[AUTO SCAN] Scan stream DONE',
-        );
-
-        debugPrint(
-          '[AUTO SCAN] Finishing scan cycle...',
-        );
-
-        _finishDashboardScanCycle(savedPots);
-      },
-    );
-
-    debugPrint(
-      '[AUTO SCAN] BLE scan started successfully',
-    );
-
-    debugPrint(
-      '[AUTO SCAN] Scan will run for 10 seconds',
-    );
-
-    _autoScanTimer?.cancel();
-
-    _autoScanTimer = Timer(
-      const Duration(seconds: 10),
-          () {
-        debugPrint('');
-        debugPrint(
-          '[AUTO SCAN] ⏱️ 10-second scan timer completed',
-        );
-
-        debugPrint(
-          '[AUTO SCAN] Finishing scan cycle from timer...',
-        );
-
-        _finishDashboardScanCycle(savedPots);
-      },
-    );
-
-    debugPrint('====================================');
-  }
-  Future<void> _finishDashboardScanCycle(
-      List<PotModel> savedPots,
-      ) async {
-    if (!_isAutoScanning) {
-      return;
-    }
-
-    _autoScanTimer?.cancel();
-    _autoScanTimer = null;
-
-    await stopScan();
-
-    // Check which pots left range.
-    final leftPots = _autoSeenPots
-        .difference(_autoDetectedThisCycle)
-        .toList();
-
-    for (final deviceId in leftPots) {
-      _autoSeenPots.remove(deviceId);
-
-      debugPrint(
-        '[AUTO PRESENCE] Pot left range → $deviceId',
-      );
-    }
-
-    _autoDetectedThisCycle.clear();
-
-    // Process queued pots first.
-    if (_autoPotQueue.isNotEmpty) {
-      await _processNextAutoPot();
-      return;
-    }
-
-    // Nothing to process → start another scan.
-    if (_isAutoScanning) {
-      await Future.delayed(
-        const Duration(seconds: 1),
-      );
-
-      if (_isAutoScanning) {
-        final pots = await _getSavedPots();
-
-        await _runDashboardScanCycle(pots);
-      }
-    }
-  }
-  void _handleDashboardDiscoveredDevice(
-      DiscoveredDevice device,
-      List<PotModel> savedPots,
-      ) {
-    debugPrint(
-      '[AUTO DISCOVERY] Device found: '
-          '${device.name} | ${device.id}',
-    );
-
-    final pot = savedPots.cast<PotModel?>().firstWhere(
-          (pot) => pot!.deviceId == device.id,
-      orElse: () => null,
-    );
-
-    if (pot == null) {
-      debugPrint(
-        '[AUTO DISCOVERY] Not a saved pot → IGNORE',
-      );
-      return;
-    }
-
-    _autoDetectedThisCycle.add(device.id);
-
-    debugPrint(
-      '[AUTO DISCOVERY] Pot detected in current scan cycle: ${device.id}',
-    );
-
-    debugPrint(
-      '[AUTO DISCOVERY] ✅ Saved pot found: ${pot.deviceId}',
-    );
-
-    if (isPotConnected(device.id)) {
-      debugPrint(
-        '[AUTO DISCOVERY] Pot already connected → IGNORE',
-      );
-      return;
-    }
-
-    if (_queuedAutoPotIds.contains(device.id)) {
-      debugPrint(
-        '[AUTO DISCOVERY] Pot already in queue → IGNORE',
-      );
-      return;
-    }
-
-    if (_autoSeenPots.contains(device.id)) {
-      debugPrint(
-        '[AUTO DISCOVERY] Pot already synced during current presence → IGNORE',
-      );
-      return;
-    }
-
-    _autoPotQueue.add(pot);
-    _queuedAutoPotIds.add(device.id);
-
-    debugPrint(
-      '[AUTO DISCOVERY] ➕ Pot added to queue: ${pot.deviceId}',
-    );
-
-    debugPrint(
-      '[AUTO DISCOVERY] Queue size: ${_autoPotQueue.length}',
-    );
-
-  }
-  Future<void> _processNextAutoPot() async {
-    debugPrint('');
-    debugPrint('========== PROCESS NEXT AUTO POT ==========');
-
-    debugPrint('[AUTO PROCESS] isAutoScanning: $_isAutoScanning',);
-
-    debugPrint('[AUTO PROCESS] isAutoProcessing: $_isAutoProcessing',);
-
-    debugPrint('[AUTO PROCESS] Queue size: ${_autoPotQueue.length}',);
-
-    if (!_isAutoScanning) {
-      debugPrint(
-        '[AUTO PROCESS] Auto scanning disabled → RETURN',
-      );
-      return;
-    }
-
-    if (_isAutoProcessing) {
-      debugPrint(
-        '[AUTO PROCESS] Another pot is already processing → RETURN',
-      );
-      return;
-    }
-
-    if (_autoPotQueue.isEmpty) {
-      debugPrint(
-        '[AUTO PROCESS] Queue is empty → RETURN',
-      );
-      return;
-    }
-
-    _isAutoProcessing = true;
-
-    final pot = _autoPotQueue.removeFirst();
-    _queuedAutoPotIds.remove(pot.deviceId);
-
-    debugPrint('[AUTO PROCESS] 🔄 Processing pot: ${pot.deviceId}',);
-
-    debugPrint('[AUTO PROCESS] Remaining queue: ${_autoPotQueue.length}',);
-
-    try {
-      debugPrint('[AUTO PROCESS] Stopping scan before connection...',);
-
-      await stopScan();
-
-      debugPrint('[AUTO PROCESS] Scan stopped',);
-
-      debugPrint('[AUTO PROCESS] Connecting to pot: ${pot.deviceId}',);
-
-      final result = await connectToPot(pot);
-
-      debugPrint('[AUTO PROCESS] Connection result: $result',);
-
-      if (result == ConnectResult.connected) {
-        debugPrint(
-          '[AUTO PROCESS] ✅ Pot connected: ${pot.deviceId}',
-        );
-
-        _autoSeenPots.add(pot.deviceId);
-
-        debugPrint(
-          '[AUTO PROCESS] Pot marked as currently present/synced',
-        );
-
-        await disconnect();
-
-        debugPrint(
-          '[AUTO PROCESS] Pot disconnected',
-        );
-      } else {
-        debugPrint(
-          '[AUTO PROCESS] ❌ Connection failed: $result',
-        );
-      }
-
-    } catch (e, stackTrace) {
-      debugPrint(
-        '[AUTO PROCESS] ❌ Auto sync failed for '
-            '${pot.deviceId}: $e',
-      );
-
-      debugPrint(
-        '[AUTO PROCESS] StackTrace: $stackTrace',
-      );
-    }
-
-    _isAutoProcessing = false;
-
-    debugPrint(
-      '[AUTO PROCESS] Processing finished',
-    );
-
-    debugPrint('==========================================');
-    if (_isAutoScanning) {
-      final pots = await _getSavedPots();
-
-      await _runDashboardScanCycle(pots);
-    }
-  }
-  Future<List<PotModel>> _getSavedPots() async {
-    debugPrint(
-      '[AUTO DATABASE] Loading saved pots from SQLite...',
-    );
-
-    final pots = await _database.getAllPots();
-
-    debugPrint(
-      '[AUTO DATABASE] ✅ Loaded ${pots.length} saved pots',
-    );
-
-    for (final pot in pots) {
-      debugPrint(
-        '[AUTO DATABASE] Pot: ${pot.deviceId}',
-      );
-    }
-
-    return pots;
-  }
-  Future<void> stopDashboardAutoScan() async {
-    debugPrint('');
-    debugPrint('========== STOP DASHBOARD AUTO SCAN ==========');
-
-    debugPrint(
-      '[AUTO STOP] Stopping dashboard auto scan...',
-    );
-
-    _isAutoScanning = false;
-
-    debugPrint(
-      '[AUTO STOP] isAutoScanning → false',
-    );
-
-    _autoScanTimer?.cancel();
-    _autoScanTimer = null;
-
-    debugPrint(
-      '[AUTO STOP] Scan timer cancelled',
-    );
-
-    debugPrint(
-      '[AUTO STOP] Clearing queue '
-          '(${_autoPotQueue.length} pots)',
-    );
-
-    _autoPotQueue.clear();
-    _queuedAutoPotIds.clear();
-
-    debugPrint(
-      '[AUTO STOP] Queue cleared',
-    );
-
-    await stopScan();
-
-    debugPrint(
-      '[AUTO STOP] BLE scan stopped',
-    );
-
-    notifyListeners();
-
-    debugPrint(
-      '[AUTO STOP] ✅ Dashboard auto scan completely stopped',
-    );
-
-    debugPrint('==============================================');
-  }
-
-  // ====================== DATABASE FUNCTIONS =====================//
-
-  /// INSERT OR UPDATE
-  Future<bool> saveCurrentPot({
-    required PotModel pot,
-  }) async {
-
-    try {
-
-      final exists =
-      await potExists(pot.deviceId);
-
-      if (exists) {
-
-        final oldPot =
-        await _database.getPot(
-            pot.deviceId);
-
-        final updatedPot = pot.copyWith(
-          id: oldPot!.id,
-          pairedAt: oldPot.pairedAt,
-          lastSynced: DateTime.now().millisecondsSinceEpoch,
-        );
-
-        await _database.updatePot(updatedPot);
-
-        print("✏ Pot Updated");
-
-      } else {
-
-
-        final newPot = pot.copyWith(
-
-          pairedAt:
-          DateTime.now().millisecondsSinceEpoch,
-
-          lastSynced:
-          DateTime.now().millisecondsSinceEpoch,
-
-        );
-
-        await _database.insertPot(newPot);
-
-        print("💾 New Pot Saved");
-
-      }
-
-      return true;
-
-    } catch (e) {
-
-      print(e);
-
-      return false;
-
-    }
-  }
- /// FINISH SETUP
-  Future<bool> finishSetup(PlantProvider plant) async {
-    _isSetupFinished = true;
-    notifyListeners();
-
-    try {
-
-      print("=================================");
-      print("🔄 Finishing Current Pot");
-      print("=================================");
-
-      await Future.delayed(
-        const Duration(seconds: 1),
-      );
-       final pot = await readCurrentPot();
-      
-      //final pot = await readDummyCurrentPot(plantProvider: plant);
-      if (pot == null) {
-
-        print("❌ Failed to read pot from BLE");
-
-        return false;
-      }
-
-      // Save SQLite
-
-      print("💾 Saving Pot...");
-
-      final success = await saveCurrentPot(
-        pot: pot,
-      );
-
-      if (!success) {
-
-        print("❌ Failed to save pot");
-
-        return false;
-      }
-
-
-      print("✅ Provider Updated");
-      print("🎉 Refresh Completed Successfully");
-
-      return true;
-
-    } catch (e, stack) {
-
-      print("=================================");
-      print("❌ Refresh Current Pot Failed");
-      print("=================================");
-      print(e);
-      print(stack);
-
-      return false;
-    }
-    finally{
-      _isSetupFinished = false;
-      notifyListeners();
-    }
-  }
- /// CHECK EXISTS
-  Future<bool> potExists(
-      String deviceId,
-      ) async {
-
-    return await _database.potExists(
-      deviceId,
-    );
-  }
-  /// CLEAR
-  Future<void> clearLocalDatabase() async {
-
-    await _database.clearDatabase();
-
-    notifyListeners();
-  }
-  /// SYNC POT VALUES TO DATABASE
-  Future<bool> syncConnectedPotToDatabase() async {
-    print("");
-    print("==============================================");
-    print("🔄 SYNCING CONNECTED POT");
-    print("==============================================");
-
-    if (_connectedDevice == null) {
-      print("❌ Cannot sync - no connected device");
-      return false;
-    }
-
-    try {
-
-
-      print("📖 Reading pot values from VIRA...");
-
-      final pot = await readCurrentPot();
-
-      if (pot == null) {
-        print("❌ Failed to read pot values");
-        return false;
-      }
-
-      print("💾 Saving synced pot to database...");
-
-      final success = await saveCurrentPot(
-        pot: pot,
-      );
-
-      if (!success) {
-        print("❌ Failed to save synced pot");
-        return false;
-      }
-
-      print("✅ Pot synced successfully");
-      print("==============================================");
-
-      return true;
-
-    } catch (e, stack) {
-
-      print("❌ Pot sync failed");
-      print(e);
-      print(stack);
-
-      return false;
-    }
-  }
-
-// ====================== BLUETOOTH READ/WRITE/NOTIFY FUNCTIONS =====================//
 
   /// READ
 
@@ -1876,95 +928,6 @@ class BleProvider extends ChangeNotifier {
       return null;
     }
   }
-  Future<BleSchedule?> readSchedule() async {
-
-    print("");
-    print("==================================================");
-    print("📖 READ SCHEDULE");
-    print("==================================================");
-
-    try {
-
-      // --------------------------------------------------
-      // Check connection
-      // --------------------------------------------------
-
-      if (_connectedDevice == null) {
-
-        print("❌ No Connected Device");
-        print("❌ Cannot read schedule");
-
-        print("==================================================");
-        return null;
-      }
-
-      final deviceId = _connectedDevice!.id;
-
-      print("🔗 Device ID : $deviceId");
-
-
-      print("");
-      print("➡️ Sending READ request to Vira...");
-
-      // --------------------------------------------------
-      // Read schedule
-      // --------------------------------------------------
-
-      final schedule =
-      await _bleService.readSchedule(deviceId);
-
-      print("");
-      print("⬅️ Schedule received from Vira");
-
-      // --------------------------------------------------
-      // Parsed values
-      // --------------------------------------------------
-
-      print("");
-      print("📅 PARSED SCHEDULE");
-      print("----------------------------------");
-      print("Days Mask        : ${schedule.daysMask}");
-      print("Time Minutes     : ${schedule.timeMinutes}");
-      print("Waterings / Day  : ${schedule.wateringsPerDay}");
-      print("----------------------------------");
-
-      // --------------------------------------------------
-      // Human-readable time
-      // --------------------------------------------------
-
-      final hours = schedule.timeMinutes ~/ 60;
-      final minutes = schedule.timeMinutes % 60;
-
-      print(
-        "⏰ Watering Time  : "
-            "${hours.toString().padLeft(2, '0')}:"
-            "${minutes.toString().padLeft(2, '0')}",
-      );
-
-      print("");
-      print("✅ Schedule Read Successfully");
-      print("==================================================");
-
-      return schedule;
-
-    } catch (e, stack) {
-
-      print("");
-      print("==================================================");
-      print("❌ READ SCHEDULE FAILED");
-      print("==================================================");
-
-      print("Error : $e");
-
-      print("");
-      print("Stack Trace:");
-      print(stack);
-
-      print("==================================================");
-
-      return null;
-    }
-  }
   Future<int?> readScheduleDaysMask() async {
 
     print("");
@@ -2146,36 +1109,199 @@ class BleProvider extends ChangeNotifier {
     }
   }
 
-  /// WRITE
-  Future<bool> saveSelectedPlant({
-    required int plantId,
-    required String plantName,
-  }) async {
-    _isWritingPlant = true;
-    notifyListeners();
+  Future<bool> readConfiguration() async {
+    if (_connectedDevice == null) {
+      print('❌ No connected device');
+      return false;
+    }
+
     try {
-      if (_connectedDevice == null) {
-        print("❌ No connected device");
-        return false;
+      _isReadingConfiguration = true;
+      notifyListeners();
+
+      print('');
+      print('==============================================');
+      print('📖 READ CONFIGURATION + LIVE STATUS');
+      print('==============================================');
+
+      // --------------------------------------------------
+      // Read configuration
+      // --------------------------------------------------
+
+      final plantNameFuture = readPlantName();
+      final plantTypeFuture = readPlantType();
+      final daysMaskFuture = readScheduleDaysMask();
+      final timeMinutesFuture = readScheduleTime();
+      final waterDurationFuture = readWaterDuration();
+
+      // --------------------------------------------------
+      // Read live status
+      // --------------------------------------------------
+
+      final batteryFuture = readBatteryLevel();
+      final lastWateredFuture = _bleService.readLastWatered(
+        _connectedDevice!.id,
+      );
+      final cycleCountFuture = _bleService.readCycleCount(
+        _connectedDevice!.id,
+      );
+      final tankStatusFuture = _bleService.readTankStatus(
+        _connectedDevice!.id,
+      );
+      final firmwareVersionFuture = _bleService.readFirmwareVersion(
+        _connectedDevice!.id,
+      );
+      final lowBatteryFuture = _bleService.readLowBatteryFlag(
+        _connectedDevice!.id,
+      );
+
+      // --------------------------------------------------
+      // Wait for all reads
+      // --------------------------------------------------
+
+      final results = await Future.wait([
+        // Configuration
+        plantNameFuture,
+        plantTypeFuture,
+        daysMaskFuture,
+        timeMinutesFuture,
+        waterDurationFuture,
+
+        // Live status
+        batteryFuture,
+        lastWateredFuture,
+        cycleCountFuture,
+        tankStatusFuture,
+        firmwareVersionFuture,
+        lowBatteryFuture,
+      ]);
+
+      // --------------------------------------------------
+      // Extract configuration results
+      // --------------------------------------------------
+
+      final plantName = results[0] as String?;
+      final plantType = results[1] as int?;
+      final daysMask = results[2] as int?;
+      final timeMinutes = results[3] as int?;
+      final waterDuration = results[4] as int?;
+
+      // --------------------------------------------------
+      // Extract live status results
+      // --------------------------------------------------
+
+      final battery = results[5] as int?;
+      final lastWatered = results[6] as int?;
+      final cycleCount = results[7] as int?;
+      final tankStatus = results[8] as TankStatus?;
+      final firmwareVersion = results[9] as String?;
+      final lowBattery = results[10] as LowBatteryFlag?;
+
+      // --------------------------------------------------
+      // Store configuration values
+      // --------------------------------------------------
+
+      _plantName = plantName;
+      _plantType = plantType;
+      _daysMask = daysMask;
+      _timeMinutes = timeMinutes;
+      _waterDuration = waterDuration;
+
+      // --------------------------------------------------
+      // Store live status values
+      // --------------------------------------------------
+
+      if (battery != null) {
+        _batteryLevel = battery;
       }
 
-      print("");
-      print("=================================");
-      print("🌿 Saving Plant");
-      print("Device : ${_connectedDevice!.id}");
-      print("Plant ID   : $plantId");
-      print("Plant Name : $plantName");
-      print("=================================");
+      if (lastWatered != null) {
+        _lastWatered = lastWatered;
+      }
 
-      //----------------------------------
-      // Write Plant Type And Name
-      //----------------------------------
-      print("➡ Writing Plant Type And Name...");
+      if (cycleCount != null) {
+        _cycleCount = cycleCount;
+      }
 
+      if (tankStatus != null) {
+        _tankStatus = tankStatus.index;
+      }
+
+      if (firmwareVersion != null) {
+        _firmwareVersion = firmwareVersion;
+      }
+
+      if (lowBattery != null) {
+        _lowBattery = lowBattery == LowBatteryFlag.low;
+      }
+
+      // --------------------------------------------------
+      // Debug result
+      // --------------------------------------------------
+
+      print('');
+      print('========== CONFIGURATION RESULT ==========');
+      print('Plant Name       : $_plantName');
+      print('Plant Type       : $_plantType');
+      print('Days Mask        : $_daysMask');
+      print('Time Minutes     : $_timeMinutes');
+      print('Water Duration   : $_waterDuration');
+
+      print('');
+      print('========== LIVE STATUS RESULT ==========');
+      print('Battery          : $_batteryLevel');
+      print('Last Watered     : $_lastWatered');
+      print('Cycle Count      : $_cycleCount');
+      print('Tank Status      : $_tankStatus');
+      print('Firmware Version : $_firmwareVersion');
+      print('Low Battery      : $_lowBattery');
+      print('========================================');
+
+      return true;
+
+    } catch (e, stack) {
+      print('');
+      print('❌ READ CONFIGURATION FAILED');
+      print('Error: $e');
+      print('Stack: $stack');
+
+      return false;
+
+    } finally {
+      _isReadingConfiguration = false;
+      notifyListeners();
+    }
+  }
+  /// WRITE
+  Future<bool> writeConfiguration({
+    required int plantType,
+    required String plantName,
+    required int daysMask,
+    required int timeMinutes,
+    required int wateringsPerDay,
+    required int waterDuration,
+  }) async {
+    if (_connectedDevice == null) {
+      print('❌ No connected device');
+      return false;
+    }
+
+    try {
+      _isWritingPlant = true;
+      _isWritingSchedule = true;
+
+      notifyListeners();
+
+      print('');
+      print('==============================================');
+      print('✍️ WRITE CONFIGURATION');
+      print('==============================================');
+
+      // Plant
       await Future.wait([
         _bleService.writePlantType(
           _connectedDevice!.id,
-          plantId,
+          plantType,
         ),
         _bleService.writePlantName(
           _connectedDevice!.id,
@@ -2183,121 +1309,44 @@ class BleProvider extends ChangeNotifier {
         ),
       ]);
 
-      print("✅ Plant Type And Name Written");
+      print('✅ Plant configuration written');
 
-      print("🎉 Plant Saved Successfully");
-
-      return true;
-    } catch (e) {
-      print("❌ Error Saving Plant");
-      print(e);
-
-      return false;
-    }
-    finally{
-      _isWritingPlant = false;
-      notifyListeners();
-    }
-  }
-
-  Future<bool> saveSchedule({
-    required PlantSchedule schedule,
-  }) async {
-
-    _isWritingSchedule = true;
-    notifyListeners();
-
-    try {
-
-      if (_connectedDevice == null) {
-        print("❌ No connected device");
-        return false;
-      }
-
-      final deviceId = _connectedDevice!.id;
-
-      print("");
-      print("==============================================");
-      print("📅 SAVE SCHEDULE - NEW SPEC WRITE/READ TEST");
-      print("==============================================");
-
-      print("Device ID       : $deviceId");
-      print("Days Mask       : ${schedule.daysMask}");
-      print("Time Minutes    : ${schedule.timeMinutes}");
-      print("Water Duration  : ${schedule.waterDuration}");
-      print("==============================================");
-
-
-      // ==================================================
-      // 1️⃣ WRITE DAYS MASK - FFD3
-      // ==================================================
-
-      print("");
-      print("1️⃣ WRITE DAYS MASK");
-      print("----------------------------------------------");
-
+      // Schedule
       await _bleService.writeScheduleDaysMask(
-        deviceId,
-        schedule.daysMask,
+        _connectedDevice!.id,
+        daysMask,
       );
-
-      print("✅ Days Mask WRITE completed");
-
-      // ==================================================
-      // 3️⃣ WRITE SCHEDULE TIME - FFD4
-      // ==================================================
-
-      print("");
-      print("3️⃣ WRITE SCHEDULE TIME");
-      print("----------------------------------------------");
 
       await _bleService.writeScheduleTime(
-        deviceId,
-        schedule.timeMinutes,
+        _connectedDevice!.id,
+        timeMinutes,
       );
-
-      print("✅ Schedule Time WRITE completed");
-
-
-      // ==================================================
-      // 5️⃣ WRITE WATER DURATION - FFD5
-      // ==================================================
-
-      print("");
-      print("5️⃣ WRITE WATER DURATION");
-      print("----------------------------------------------");
 
       await _bleService.writeWaterDuration(
-        deviceId,
-        schedule.waterDuration,
+        _connectedDevice!.id,
+        waterDuration,
       );
 
-      print("✅ Water Duration WRITE completed");
+      print('✅ Schedule configuration written');
 
+      await setupDone();
 
+      _hasWrittenConfiguration = true;
 
+      print('🎉 CONFIGURATION WRITE SUCCESS');
 
       return true;
-
     } catch (e, stack) {
-
-      print("");
-      print("==============================================");
-      print("❌ WRITE/READ TEST FAILED");
-      print("==============================================");
-
-      print("Error: $e");
-      print("");
-      print("Stack:");
+      print('❌ WRITE CONFIGURATION FAILED');
+      print(e);
       print(stack);
 
       return false;
-
     } finally {
-
+      _isWritingPlant = false;
       _isWritingSchedule = false;
-      notifyListeners();
 
+      notifyListeners();
     }
   }
   Future<void> syncRtcNow() async {
@@ -2323,65 +1372,145 @@ class BleProvider extends ChangeNotifier {
     print(" Setup Done");
   }
 
-  /// NOTIFICATION
-  void startBatteryNotification() {
 
-    print("");
-    print("==================================================");
-    print("🔔 START BATTERY NOTIFICATION");
-    print("==================================================");
+  // Inside BleProvider class
 
-    if (deviceId == null) {
-      print("❌ Cannot start battery notification");
-      print("❌ Device ID is null");
-      return;
+  bool _isUpdating = false;
+  bool get isUpdating => _isUpdating;
+
+  double _updateProgress = 0.0;
+  double get updateProgress => _updateProgress;
+
+  // Future<void> startFirmwareUpdateOld() async {
+  //   if (_connectedDevice == null) {
+  //     print("❌ No device connected for DFU");
+  //     return;
+  //   }
+  //
+  //   try {
+  //     _isUpdating = true;
+  //     notifyListeners();
+  //
+  //     print("🚀 Starting DFU Update for: ${_connectedDevice!.id}");
+  //
+  //     // 1. Request high MTU for faster transfer
+  //     await _bleService.requestMtu(deviceId: _connectedDevice!.id, mtu: 247);
+  //
+  //     // 2. Run the SMP Test
+  //     final smpTest = SmpTest(
+  //       ble: _bleService.ble, // Pass your reactive ble instance
+  //       deviceId: _connectedDevice!.id,
+  //     );
+  //
+  //     await smpTest.start();
+  //
+  //     print("✅ DFU Update Successful");
+  //   } catch (e) {
+  //     print("❌ DFU Update Failed: $e");
+  //     rethrow;
+  //   } finally {
+  //     _isUpdating = false;
+  //     notifyListeners();
+  //   }
+  // }
+  // Inside BleProvider class
+
+
+
+  Future<void> startFirmwareUpdateOld() async {
+    if (_connectedDevice == null) return;
+
+    try {
+      _isUpdating = true;
+      _updateProgress = 0.0; // Reset progress
+      notifyListeners();
+
+      print("🚀 Starting DFU Update for: ${_connectedDevice!.id}");
+
+      await _bleService.requestMtu(deviceId: _connectedDevice!.id, mtu: 247);
+      final smpTest = SmpTest(
+        ble: _bleService.ble,
+        deviceId: _connectedDevice!.id,
+
+        onProgress: (progress) {
+          _updateProgress = progress;
+          print("Provider Progress: $_updateProgress"); // Add this debug print
+          notifyListeners();
+        },
+      );
+
+      await smpTest.start();
+
+      print("✅ DFU Update Successful");
+    } catch (e) {
+      print("❌ DFU Update Failed: $e");
+      rethrow;
+    } finally {
+      _isUpdating = false;
+      _updateProgress = 0.0;
+      notifyListeners();
     }
+  }
+  Future<void> startFirmwareUpdate() async {
+    if (_connectedDevice == null) return;
 
-    print("📱 Device ID: $deviceId");
-    // print("🔧 Service: ${BleConstants.serviceStatus}");
-    // print("🔧 Characteristic: ${BleConstants.battery}");
+    try {
+      _isUpdating = true;
+      _updateProgress = 0.0;
+      notifyListeners();
 
-    _batterySubscription?.cancel();
+      final deviceId = _connectedDevice!.id;
+      print("🚀 Starting Optimized DFU Update for: $deviceId");
 
-    print("🧹 Previous battery subscription cancelled");
+      // 1. Request High MTU (Already doing this, but ensure it's 247)
+      // This allows more data per packet.
+      await _bleService.requestMtu(deviceId: deviceId, mtu: 512);
 
-    _batterySubscription =
-        _bleService
-            .batteryStream(deviceId!)
-            .listen(
-              (battery) {
-
-            print("");
-            print("🔋 ==========================================");
-            print("🔋 BATTERY NOTIFICATION RECEIVED");
-            print("🔋 Battery Value: $battery%");
-            print("🔋 ==========================================");
-
-            // _batteryLevel = battery;
-
-            notifyListeners();
-          },
-          onError: (error) {
-
-            print("");
-            print("❌ ==========================================");
-            print("❌ BATTERY NOTIFICATION ERROR");
-            print("❌ $error");
-            print("❌ ==========================================");
-
-          },
-          onDone: () {
-
-            print("");
-            print("🛑 ==========================================");
-            print("🛑 BATTERY NOTIFICATION STREAM CLOSED");
-            print("🛑 ==========================================");
-
-          },
+      // 2. 🌟 CRITICAL: Request High Performance Connection Priority
+      // This reduces the connection interval (time between packets)
+      // from ~30ms down to ~7.5ms - 15ms on Android.
+      try {
+        await _bleService.requestConnectionPriority(
+          deviceId: deviceId,
+          priority: ConnectionPriority.highPerformance,
         );
+        print("⚡ Connection priority set to High Performance");
+      } catch (e) {
+        print("⚠️ Could not set connection priority: $e");
+      }
 
-    print("✅ Battery notification listener started");
-    print("==================================================");
+      // 3. Small delay to let the BLE stack apply the new parameters
+      await Future.delayed(const Duration(milliseconds: 1000));
+
+
+      final smpTest = SmpTest(
+        ble: _bleService.ble,
+        deviceId: deviceId,
+        onProgress: (progress) {
+          _updateProgress = progress;
+          notifyListeners();
+        },
+      );
+
+      await smpTest.start();
+
+      print("✅ DFU Update Successful");
+    } catch (e) {
+      print("❌ DFU Update Failed: $e");
+      rethrow;
+    } finally {
+      // 4. Optional: Reset priority to balanced to save battery after update
+      try {
+        await _bleService.requestConnectionPriority(
+          deviceId: _connectedDevice!.id,
+          priority: ConnectionPriority.balanced,
+        );
+      } catch (_) {}
+
+      _isUpdating = false;
+      _updateProgress = 0.0;
+      notifyListeners();
+    }
   }
 
   @override

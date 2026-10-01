@@ -881,4 +881,20 @@ class BleService {
   Stream<BleStatus> getStatusStream() {
     return ble.statusStream;
   }
+
+  Future<int> requestMtu({required String deviceId, required int mtu}) async {
+    try {
+      // _ble is your instance of FlutterReactiveBle
+      return await ble.requestMtu(deviceId: deviceId, mtu: mtu);
+    } catch (e) {
+      print("BleService: MTU request failed: $e");
+      rethrow;
+    }
+  }
+  Future<void> requestConnectionPriority({
+    required String deviceId,
+    required ConnectionPriority priority,
+  }) async {
+    await ble.requestConnectionPriority(deviceId: deviceId, priority: priority);
+  }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:vira_planter_app/Data/Services/Ble_Vira/ble_services.dart';
+import 'package:vira_planter_app/Presentation/Client_Screens/pairing_screen.dart';
 import 'package:vira_planter_app/Presentation/Providers/ble_provider.dart';
 import 'package:vira_planter_app/Presentation/Providers/plant_provider.dart';
 import 'package:vira_planter_app/Presentation/Providers/pot_provider.dart';
@@ -21,11 +22,10 @@ void main() {
       MultiProvider(
         providers: [
           Provider(create: (_) => BleService(),),
-         // ChangeNotifierProvider(create: (context) =>BleProvider(context.read<BleService>(),DatabaseHelper.instance) ),
           ChangeNotifierProvider(
             lazy: false,
             create: (context) {
-              final provider = BleProvider(context.read<BleService>(), DatabaseHelper.instance,);
+              final provider = BleProvider(context.read<BleService>());
               provider.initialize();
               return provider;
             },
@@ -57,7 +57,9 @@ class ViraPlantraApp extends StatelessWidget {
 
        // home: const OnboardingScreens(),
         // home: const BleScanScreen(),
-        home: FirmwareTestScreen(),
+        //home: FirmwareTestScreen(),
+       // home: PairingScreen(),
+        home: OnboardingPage(),
       ),
     );
   }

@@ -69,44 +69,6 @@ class _HubModeSetupScreenState extends State<HubModeSetupScreen> {
             noHubCard(),
             SizedBox(height: 20,),
 
-            Consumer<BleProvider>(
-              builder: (_, ble, __) {
-
-                return ElevatedButton(
-
-                  onPressed: ble.isSetupFinished
-                      ? null
-                      : () async {
-                    final plant = context.read<PlantProvider>();
-
-                    final success = await ble.finishSetup(plant);
-
-                    if (!context.mounted) return;
-
-                    if (success) {
-
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                          const DashboardScreen(),
-                        ),
-                      );
-                    }
-                    else{
-                      AppSnackbar.error(context, "Connection Interrupted! Make sure your Vira pot is connected");
-                    }
-                  },
-
-                  child: ble.isSetupFinished
-                      ? LoadingAnimationWidget.staggeredDotsWave(
-                    color: Colors.white,
-                    size: 24,
-                  )
-                      : const Text("Finish Setup"),
-                );
-              },
-            )
           ],
         ),
       ),

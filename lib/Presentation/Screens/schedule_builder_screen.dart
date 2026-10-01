@@ -93,31 +93,7 @@ class _WateringScheduleScreenState extends State<WateringScheduleScreen> {
                 const SizedBox(height: 30),
 
                 ElevatedButton(
-                  onPressed: () async {
-                    final ble = context.read<BleProvider>();
-                    final plant = context.read<PlantProvider>();
-
-                    final success = await ble.saveSchedule(
-                      schedule: plant.schedule!,
-                    );
-
-                    if (success) {
-
-                      await ble.setupDone();
-
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const HubModeSetupScreen(),
-                        ),
-                      );
-                    } else {
-                      AppSnackbar.error(
-                        context,
-                        "Unable to save schedule. Make Sure connection is established",
-                      );
-                    }
-                  },
+                  onPressed: () async {},
                   child: const Text("Continue"),
                 ),
 

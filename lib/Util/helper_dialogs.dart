@@ -8,16 +8,24 @@ void handleBleNotReady(BleStatus status, BuildContext context) {
   // 🚫 Ignore unknown (initial state)
   if (status == BleStatus.unknown) return;
 
+  String title;
   String msg;
 
   if (status == BleStatus.poweredOff) {
-    msg = "Please turn ON Bluetooth";
+    title = "Bluetooth Required";
+    msg =
+    "Bluetooth is currently turned off. Please enable it to scan for Vira pots.";
   } else if (status == BleStatus.locationServicesDisabled) {
-    msg = "Please turn ON Location";
+    title = "Location Required";
+    msg =
+    "Location services are disabled. BLE scanning requires location to be active.";
   } else {
-    msg = "Bluetooth not ready";
+    title = "Hardware Alert";
+    msg = "Bluetooth status: ${status
+        .toString()
+        .split('.')
+        .last}. Please check your settings.";
   }
-
 
   WidgetsBinding.instance.addPostFrameCallback((_) {
     if (!context.mounted) return;
@@ -26,82 +34,49 @@ void handleBleNotReady(BleStatus status, BuildContext context) {
       context: context,
       barrierDismissible: false,
       builder: (_) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: AppColors.cardBackground,
-              borderRadius: BorderRadius.circular(28),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                //====================================================
-                // ICON
-                //====================================================
-                Container(
-                  height: 90,
-                  width: 90,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(.10),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    status == BleStatus.poweredOff
-                        ? Icons.bluetooth_disabled_rounded
-                        : Icons.location_off_rounded,
-                    size: 46,
-                    color: AppColors.primary,
-                  ),
-                ),
-
-                const SizedBox(height: 22),
-
-                Text(
-                  "Action Required",
-                  style: Theme.of(context).textTheme.headlineSmall,
-                  textAlign: TextAlign.center,
-                ),
-
-                const SizedBox(height: 10),
-
-                Text(
-                  msg,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-
-                const SizedBox(height: 28),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.pop(context);
-
-                          if (status == BleStatus.poweredOff) {
-                            AppSettings.openAppSettings(
-                              type: AppSettingsType.bluetooth,
-                            );
-                          } else if (status ==
-                              BleStatus.locationServicesDisabled) {
-                            AppSettings.openAppSettings(
-                              type: AppSettingsType.location,
-                            );
-                          }
-                        },
-                        child: const Text("Open Settings"),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12)),
+          title: Row(
+            children: [
+              Icon(
+                status == BleStatus.poweredOff
+                    ? Icons.bluetooth_disabled
+                    : Icons.location_off,
+                color: Colors.blueGrey[700],
+              ),
+              const SizedBox(width: 12),
+              Text(title),
+            ],
           ),
+          content: Text(msg),
+          actions: [
+            // Basic Text Button for Cancel
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                "Dismiss",
+                style: TextStyle(color: Colors.grey[600]),
+              ),
+            ),
+            // Neutral Filled Button for Settings
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(context);
+                if (status == BleStatus.poweredOff) {
+                  AppSettings.openAppSettings(type: AppSettingsType.bluetooth);
+                } else if (status == BleStatus.locationServicesDisabled) {
+                  AppSettings.openAppSettings(type: AppSettingsType.location);
+                }
+              },
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.blueGrey[800],
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text("Open Settings"),
+            ),
+          ],
         );
       },
     );

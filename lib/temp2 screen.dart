@@ -356,6 +356,7 @@ class _BleScanScreenState extends State<BleScanScreen> {
           await SmpTest(
             ble: flutterReactiveBle,
             deviceId: deviceId,
+            onProgress: (double x){},
           ).start();
         }
       }

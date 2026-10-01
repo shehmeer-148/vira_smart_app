@@ -21,40 +21,6 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-// class _DashboardScreenState extends State<DashboardScreen> {
-//   final String userName = "Good morning";
-//
-//   late PotProvider potProvider;
-//   late BleProvider bleProvider;
-//
-//   @override
-//   void initState() {
-//     super.initState();
-//
-//     WidgetsBinding.instance.addPostFrameCallback((_) async {
-//       potProvider = context.read<PotProvider>();
-//       bleProvider = context.read<BleProvider>();
-//
-//       potProvider.clear();
-//
-//       await potProvider.loadAllPots();
-//
-//       await _startDashboardAutoScan();
-//     });
-//   }
-//
-//   @override
-//   void dispose() {
-//     bleProvider.stopDashboardAutoScan();
-//
-//     super.dispose();
-//   }
-//
-//   Future<void> _startDashboardAutoScan() async {
-//     await bleProvider.startDashboardAutoScan(
-//       potProvider.pots,
-//     );
-//   }
 class _DashboardScreenState extends State<DashboardScreen> {
   final String userName = "Good morning";
 
@@ -79,23 +45,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       await potProvider.loadAllPots();
 
       if (!mounted) return;
-
-      await _startDashboardAutoScan();
     });
   }
 
   @override
   void dispose() {
-    bleProvider.stopDashboardAutoScan();
 
     super.dispose();
   }
 
-  Future<void> _startDashboardAutoScan() async {
-    await bleProvider.startDashboardAutoScan(
-      potProvider.pots,
-    );
-  }
 
 
 
@@ -195,7 +153,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 child: potCard(
                                   context: context,
                                   onTap: () async{
-                                    await bleProvider.stopDashboardAutoScan();
 
                                     await Navigator.push(
                                       context,
@@ -207,7 +164,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       ),
                                     );
 
-                                    await _startDashboardAutoScan();
                                   },
                                   image: pot.plantImage,
                                   name: pot.plantName,
@@ -271,44 +227,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _connectToPot(PotModel pot) async {
-    final bleProvider = context.read<BleProvider>();
 
-    final result = await bleProvider.connectToPot(pot);
 
-    if (!mounted) return;
-
-    switch (result) {
-      case ConnectResult.connected:
-        print("✅ ${pot.plantName} connected");
-        break;
-
-      case ConnectResult.bluetoothNotReady:
-        AppSnackbar.error(
-          context,
-          "Bluetooth is not ready. Please turn on Bluetooth.",
-        );
-        break;
-
-      case ConnectResult.alreadyConnecting:
-        AppSnackbar.info(
-          context,
-          "Another pot is already connecting.",
-        );
-        break;
-
-      case ConnectResult.deviceNotFound:
-        AppSnackbar.error(
-          context,
-          "${pot.plantName} could not be found.",
-        );
-        break;
-
-      case ConnectResult.connectionFailed:
-        AppSnackbar.error(
-          context,
-          "Could not connect to ${pot.plantName}.",
-        );
-        break;
-    }
   }
 }

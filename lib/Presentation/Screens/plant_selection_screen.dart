@@ -417,57 +417,7 @@ class _ChoosePlantScreenState extends State<ChoosePlantScreen> {
                     onPressed:
                     provider.selectedPlant == null
                         ? null
-                        : () async {
-
-                      final plantProvider =
-                      context.read<PlantProvider>();
-
-                      final bleProvider =
-                      context.read<BleProvider>();
-
-                      if (plantProvider.selectedPlant == null) {
-                        AppSnackbar.success(context, "Please Select a Plant First");
-                        return;
-                      }
-
-                      final plant = plantProvider.selectedPlant!;
-
-
-                      final success = await bleProvider.saveSelectedPlant(
-                        plantId: plant.id,
-                        plantName: plant.name,
-                      );
-
-                      if (!context.mounted) return;
-
-                      if (success) {
-                       // print("🟢 CONNECTED — STARTING VIRA READ TEST");
-
-
-                        // await bleProvider.setupDone();
-                        // final plantName = await bleProvider.readPlantName();
-                        // final plantType= await bleProvider.readPlantType();
-                        // final batteryLevel = await bleProvider.readBatteryLevel();
-                        // await bleProvider.readDeviceUuid();
-                        // bleProvider.startBatteryNotification();
-                        // print("");
-                        // print("==========================================");
-                        // print("✅ VIRA READ TEST RESULT");
-                        // print("Battery Level : $batteryLevel");
-                        // print("Plant Name : $plantName");
-                        // print("Plant Type : $plantType");
-                        // print("==========================================");
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const WateringScheduleScreen(),
-                          ),
-                        );
-                      }
-                      else{
-                        AppSnackbar.error(context, "Vira Pot disconnected!");
-                      }
-                    },
+                        : () async{},
 
                   child: const Text("Continue"),
                 ),
