@@ -52,7 +52,6 @@ class ViraPlantraApp extends StatelessWidget {
       child: MaterialApp(
         title: 'Vira Plantra',
         debugShowCheckedModeBanner: false,
-
         theme: AppTheme.lightTheme,
 
        // home: const OnboardingScreens(),
