@@ -126,23 +126,9 @@ class SmpBleTransport implements SmpTransport {
     await _notificationController.close();
     await _stateController.close();
   }
-  // Future<void> checkMtu() async {
-  //   try {
-  //     final mtu = await ble.requestMtu(
-  //       deviceId: deviceId,
-  //       mtu: 247,
-  //     );
-  //
-  //     print('📏 Negotiated BLE MTU: $mtu');
-  //     print('📏 Maximum ATT payload: ${mtu - 3} bytes');
-  //   } catch (e) {
-  //     print('❌ MTU request failed: $e');
-  //   }
-  // }
 
-  // Inside SmpBleTransport class
 
-  int _currentMtu = 247; // Default to requested
+  int _currentMtu = 512; // Default to requested
 
   @override
   int? get maxWriteLength => _currentMtu - 3; // ATT overhead is 3 bytes

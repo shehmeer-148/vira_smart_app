@@ -1462,7 +1462,7 @@ class BleProvider extends ChangeNotifier {
       final deviceId = _connectedDevice!.id;
       print("🚀 Starting Optimized DFU Update for: $deviceId");
 
-      // 1. Request High MTU (Already doing this, but ensure it's 247)
+      // 1. Request High MTU (Already doing this, but ensure it's 512)
       // This allows more data per packet.
       await _bleService.requestMtu(deviceId: deviceId, mtu: 512);
 
