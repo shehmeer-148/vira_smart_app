@@ -22,7 +22,7 @@ class BleProvider extends ChangeNotifier {
 
   bool _isConnecting = false;
 
- /// BLUETOOTH STATUS
+  /// BLUETOOTH STATUS
 
   BleStatus _bleStatus = BleStatus.unknown;
   BleStatus get bleStatus => _bleStatus;
@@ -30,28 +30,20 @@ class BleProvider extends ChangeNotifier {
   /// CONNECTION
 
   BleConnectionState _connectionState = BleConnectionState.disconnected;
-  BleConnectionState get connectionState =>
-      _connectionState;
-  bool get isScanning =>
-      _connectionState == BleConnectionState.scanning;
-  bool get isConnecting =>
-      _connectionState == BleConnectionState.connecting;
-  bool get isConnected =>
-      _connectionState == BleConnectionState.connected;
+  BleConnectionState get connectionState => _connectionState;
+  bool get isScanning => _connectionState == BleConnectionState.scanning;
+  bool get isConnecting => _connectionState == BleConnectionState.connecting;
+  bool get isConnected => _connectionState == BleConnectionState.connected;
 
   /// DEVICE
 
   final List<DiscoveredDevice> _devices = [];
-  List<DiscoveredDevice> get devices =>
-      List.unmodifiable(_devices);
+  List<DiscoveredDevice> get devices => List.unmodifiable(_devices);
   DiscoveredDevice? _selectedDevice;
-  DiscoveredDevice? get selectedDevice =>
-      _selectedDevice;
+  DiscoveredDevice? get selectedDevice => _selectedDevice;
   DiscoveredDevice? _connectedDevice;
-  DiscoveredDevice? get connectedDevice =>
-      _connectedDevice;
-  String? get deviceId =>
-      _connectedDevice?.id;
+  DiscoveredDevice? get connectedDevice => _connectedDevice;
+  String? get deviceId => _connectedDevice?.id;
 
   /// POT DATA
 
@@ -65,6 +57,7 @@ class BleProvider extends ChangeNotifier {
   bool isPotConnected(String deviceId) {
     return _connectedDevice?.id == deviceId;
   }
+
   // bool isPotConnecting(String deviceId) {
   //   return _isConnecting &&
   //       _selectedDevice?.id == deviceId;
@@ -82,8 +75,8 @@ class BleProvider extends ChangeNotifier {
 
   /// TEST DATA
   // ============================================================
-// TEST APP CONFIGURATION DATA
-// ============================================================
+  // TEST APP CONFIGURATION DATA
+  // ============================================================
 
   int? _plantType;
   String? _plantName;
@@ -92,7 +85,7 @@ class BleProvider extends ChangeNotifier {
   int? _timeMinutes;
   int? _waterDuration;
 
-// Live Status
+  // Live Status
   int _batteryLevel = 0;
   int _tankStatus = 0;
   int _lastWatered = 0;
@@ -178,11 +171,9 @@ class BleProvider extends ChangeNotifier {
     _connectedDevice = null;
     _selectedDevice = null;
 
-
     _isConnecting = false;
 
-    _connectionState =
-        BleConnectionState.disconnected;
+    _connectionState = BleConnectionState.disconnected;
 
     notifyListeners();
 
@@ -196,26 +187,25 @@ class BleProvider extends ChangeNotifier {
 
     print("Creating BLE status subscription...");
 
-    _statusSubscription =
-        _bleService.getStatusStream().listen((status) {
+    _statusSubscription = _bleService.getStatusStream().listen((status) {
+      print("");
+      print("========== BLE STATUS EVENT ==========");
+      print("Status          : $status");
+      print("ConnectionState : $_connectionState");
+      print("isScanning      : $isScanning");
+      print("isConnecting    : $isConnecting");
+      print("isConnected     : $isConnected");
+      print("======================================");
 
-          print("");
-          print("========== BLE STATUS EVENT ==========");
-          print("Status          : $status");
-          print("ConnectionState : $_connectionState");
-          print("isScanning      : $isScanning");
-          print("isConnecting    : $isConnecting");
-          print("isConnected     : $isConnected");
-          print("======================================");
+      _bleStatus = status;
 
-          _bleStatus = status;
-
-          notifyListeners();
-        });
+      notifyListeners();
+    });
 
     print("BLE initialize completed");
     print("====================================");
   }
+
   Future<void> initializePairing() async {
     // print("");
     // print("========== INITIALIZE PAIRING ==========");
@@ -236,10 +226,7 @@ class BleProvider extends ChangeNotifier {
     // Start scan for pairing screen
     // --------------------------------------------------
 
-    if (!isScanning &&
-        !isConnecting &&
-        !isConnected) {
-
+    if (!isScanning && !isConnecting && !isConnected) {
       print("🟢 BLE READY → START PAIRING SCAN");
 
       await startScan();
@@ -247,6 +234,7 @@ class BleProvider extends ChangeNotifier {
 
     print("=========================================");
   }
+
   /// PERMISSIONS
   Future<bool> _checkPermissions() async {
     if (Platform.isAndroid) {
@@ -256,13 +244,10 @@ class BleProvider extends ChangeNotifier {
         Permission.location,
       ].request();
 
-      return statuses.values.every(
-            (e) => e.isGranted,
-      );
+      return statuses.values.every((e) => e.isGranted);
     }
 
-    return (await Permission.bluetooth.request())
-        .isGranted;
+    return (await Permission.bluetooth.request()).isGranted;
   }
 
   /// SCAN
@@ -282,13 +267,15 @@ class BleProvider extends ChangeNotifier {
     notifyListeners();
 
     _scanSubscription = _bleService.scan().listen(
-          (device) {
+      (device) {
         // Update or Add timestamp
         _lastSeen[device.id] = DateTime.now();
 
         // If new device, add to list
         if (!_devices.any((d) => d.id == device.id)) {
-          print("📡 Device found: ${device.name.isNotEmpty ? device.name : "Unknown"} (${device.id})");
+          print(
+            "📡 Device found: ${device.name.isNotEmpty ? device.name : "Unknown"} (${device.id})",
+          );
           _devices.add(device);
           notifyListeners();
         }
@@ -325,6 +312,7 @@ class BleProvider extends ChangeNotifier {
       },
     );
   }
+
   /// STOP
   Future<void> stopScan() async {
     print("========== STOP SCAN ==========");
@@ -347,15 +335,15 @@ class BleProvider extends ChangeNotifier {
 
     print("==============================");
   }
-  /// SELECT DEVICE
-  void selectDevice(
-      DiscoveredDevice device) {
 
+  /// SELECT DEVICE
+  void selectDevice(DiscoveredDevice device) {
     _selectedDevice = device;
     print("Selected hash: ${device.hashCode}");
 
     notifyListeners();
   }
+
   /// CONNECT
   Future<bool> connect() async {
     print("");
@@ -398,8 +386,7 @@ class BleProvider extends ChangeNotifier {
     // --------------------------------------------------
 
     _isConnecting = true;
-    _connectionState =
-        BleConnectionState.connecting;
+    _connectionState = BleConnectionState.connecting;
 
     notifyListeners();
 
@@ -487,9 +474,7 @@ class BleProvider extends ChangeNotifier {
       // GIVE BLE STACK TIME TO RELEASE SCAN
       // --------------------------------------------------
 
-      await Future.delayed(
-        const Duration(milliseconds: 500),
-      );
+      await Future.delayed(const Duration(milliseconds: 500));
 
       // --------------------------------------------------
       // START CONNECTION
@@ -497,33 +482,29 @@ class BleProvider extends ChangeNotifier {
 
       print("🔗 Starting BLE connection...");
 
-      _connectionSubscription = _bleService.connect(device).listen(
-                (update) async{
-
-              print("BLE : ${update.connectionState}",);
+      _connectionSubscription = _bleService
+          .connect(device)
+          .listen(
+            (update) async {
+              print("BLE : ${update.connectionState}");
 
               switch (update.connectionState) {
-
-              // --------------------------------------------
-              // CONNECTING
-              // --------------------------------------------
+                // --------------------------------------------
+                // CONNECTING
+                // --------------------------------------------
 
                 case DeviceConnectionState.connecting:
-
-                  print(
-                    "🔵 BLE connection is CONNECTING",
-                  );
+                  print("🔵 BLE connection is CONNECTING");
 
                   break;
 
-              // --------------------------------------------
-              // CONNECTED
-              // --------------------------------------------
+                // --------------------------------------------
+                // CONNECTED
+                // --------------------------------------------
 
                 case DeviceConnectionState.connected:
-
                   print("🟢 BLE CONNECTED");
-                  print("Connected Device : ${device.id}",);
+                  print("Connected Device : ${device.id}");
 
                   // Stop timeout
                   timeoutTimer?.cancel();
@@ -546,19 +527,18 @@ class BleProvider extends ChangeNotifier {
 
                   break;
 
-              // --------------------------------------------
-              // DISCONNECTING
-              // --------------------------------------------
+                // --------------------------------------------
+                // DISCONNECTING
+                // --------------------------------------------
 
                 case DeviceConnectionState.disconnecting:
-
-                  print("🟡 BLE DISCONNECTING",);
+                  print("🟡 BLE DISCONNECTING");
 
                   break;
 
-              // --------------------------------------------
-              // DISCONNECTED
-              // --------------------------------------------
+                // --------------------------------------------
+                // DISCONNECTED
+                // --------------------------------------------
 
                 case DeviceConnectionState.disconnected:
                   print("🔴 BLE DISCONNECTED");
@@ -569,43 +549,37 @@ class BleProvider extends ChangeNotifier {
                     completer.complete(false);
                   }
 
-
-              // print("🔴 BLE DISCONNECTED");
-                  //
-                  // if (!completer.isCompleted) {
-                  //
-                  //   cleanup().then((_) {
-                  //
-                  //     if (!completer.isCompleted) {
-                  //       completer.complete(false);
-                  //     }
-                  //
-                  //   });
-                  // }
-                  //
-                  // break;
+                // print("🔴 BLE DISCONNECTED");
+                //
+                // if (!completer.isCompleted) {
+                //
+                //   cleanup().then((_) {
+                //
+                //     if (!completer.isCompleted) {
+                //       completer.complete(false);
+                //     }
+                //
+                //   });
+                // }
+                //
+                // break;
               }
             },
 
             // ------------------------------------------------
             // CONNECTION ERROR
             // ------------------------------------------------
-
             onError: (error) {
-
               print("");
               print("❌ CONNECTION ERROR");
               print(error);
               print("");
 
               if (!completer.isCompleted) {
-
                 cleanup().then((_) {
-
                   if (!completer.isCompleted) {
                     completer.complete(false);
                   }
-
                 });
               }
             },
@@ -615,31 +589,23 @@ class BleProvider extends ChangeNotifier {
       // CONNECTION TIMEOUT
       // --------------------------------------------------
 
-      timeoutTimer = Timer(
-        const Duration(seconds: 12),
-            () {
+      timeoutTimer = Timer(const Duration(seconds: 12), () {
+        if (completer.isCompleted) {
+          return;
+        }
 
-          if (completer.isCompleted) {
-            return;
+        print("");
+        print("⏰ CONNECTION TIMEOUT");
+        print("Device : ${device.id}");
+        print("The BLE connection did not reach CONNECTED");
+        print("");
+
+        cleanup().then((_) {
+          if (!completer.isCompleted) {
+            completer.complete(false);
           }
-
-          print("");
-          print("⏰ CONNECTION TIMEOUT");
-          print("Device : ${device.id}");
-          print(
-            "The BLE connection did not reach CONNECTED",
-          );
-          print("");
-
-          cleanup().then((_) {
-
-            if (!completer.isCompleted) {
-              completer.complete(false);
-            }
-
-          });
-        },
-      );
+        });
+      });
 
       // --------------------------------------------------
       // WAIT FOR CONNECTION RESULT
@@ -655,9 +621,7 @@ class BleProvider extends ChangeNotifier {
       print("====================================");
 
       return result;
-
     } catch (e) {
-
       print("");
       print("❌ CONNECT EXCEPTION");
       print(e);
@@ -672,6 +636,7 @@ class BleProvider extends ChangeNotifier {
       return false;
     }
   }
+
   /// DISCONNECT
   Future<void> disconnect() async {
     print("");
@@ -681,8 +646,7 @@ class BleProvider extends ChangeNotifier {
     // Cancel connection subscription
     // --------------------------------------------------
 
-    final connectionSubscription =
-        _connectionSubscription;
+    final connectionSubscription = _connectionSubscription;
 
     _connectionSubscription = null;
 
@@ -696,8 +660,7 @@ class BleProvider extends ChangeNotifier {
     // Cancel battery notification
     // --------------------------------------------------
 
-    final batterySubscription =
-        _batterySubscription;
+    final batterySubscription = _batterySubscription;
 
     _batterySubscription = null;
 
@@ -720,8 +683,7 @@ class BleProvider extends ChangeNotifier {
 
     _isConnecting = false;
 
-    _connectionState =
-        BleConnectionState.disconnected;
+    _connectionState = BleConnectionState.disconnected;
 
     // --------------------------------------------------
     // Update UI
@@ -732,8 +694,8 @@ class BleProvider extends ChangeNotifier {
     print("🔴 Device disconnected");
     print("==================================");
   }
-  /// CONNECT TO SAVED POT
 
+  /// CONNECT TO SAVED POT
 
   /// READ
 
@@ -749,8 +711,7 @@ class BleProvider extends ChangeNotifier {
       print("📖 READ PLANT NAME");
       print("Device: $deviceId");
 
-      final plantName =
-      await _bleService.readPlantName(deviceId);
+      final plantName = await _bleService.readPlantName(deviceId);
 
       print("🪴 Plant Name received from VIRA: $plantName");
 
@@ -762,6 +723,7 @@ class BleProvider extends ChangeNotifier {
       return null;
     }
   }
+
   Future<int?> readPlantType() async {
     try {
       if (_connectedDevice == null) {
@@ -771,12 +733,10 @@ class BleProvider extends ChangeNotifier {
 
       final deviceId = _connectedDevice!.id;
 
-
       print("📖 READ PLANT TYPE");
       print("Device: $deviceId");
 
-      final plantType =
-      await _bleService.readPlantType(deviceId);
+      final plantType = await _bleService.readPlantType(deviceId);
 
       print("🪴 Plant Type received from VIRA: $plantType");
 
@@ -788,6 +748,7 @@ class BleProvider extends ChangeNotifier {
       return null;
     }
   }
+
   Future<int?> readBatteryLevel() async {
     try {
       if (_connectedDevice == null) {
@@ -803,8 +764,7 @@ class BleProvider extends ChangeNotifier {
       print("Device: $deviceId");
       print("==========================================");
 
-      final batteryLevel =
-      await _bleService.readBatteryLevel(deviceId);
+      final batteryLevel = await _bleService.readBatteryLevel(deviceId);
 
       print("🔋 Battery received from VIRA: $batteryLevel%");
 
@@ -816,17 +776,15 @@ class BleProvider extends ChangeNotifier {
       return null;
     }
   }
-  Future<String?> readDeviceUuid() async {
 
+  Future<String?> readDeviceUuid() async {
     print("");
     print("==============================================");
     print("📖 READ DEVICE UUID");
     print("==============================================");
 
     try {
-
       if (_connectedDevice == null) {
-
         print("❌ No Connected Device");
 
         return null;
@@ -836,15 +794,12 @@ class BleProvider extends ChangeNotifier {
 
       print("🔗 BLE Device ID : $deviceId");
 
-      final uuid =
-      await _bleService.readDeviceUuid(deviceId);
+      final uuid = await _bleService.readDeviceUuid(deviceId);
 
       print("🔑 Device UUID : $uuid");
 
       return uuid;
-
     } catch (e, stack) {
-
       print("");
       print("❌ READ DEVICE UUID FAILED");
       print("Error : $e");
@@ -853,21 +808,19 @@ class BleProvider extends ChangeNotifier {
       return null;
     }
   }
-  Future<int?> readWaterDuration() async {
 
+  Future<int?> readWaterDuration() async {
     print("");
     print("==================================================");
     print("📖 READ WATER DURATION");
     print("==================================================");
 
     try {
-
       // --------------------------------------------------
       // Check connection
       // --------------------------------------------------
 
       if (_connectedDevice == null) {
-
         print("❌ No Connected Device");
         print("❌ Cannot read water duration");
 
@@ -887,10 +840,7 @@ class BleProvider extends ChangeNotifier {
       // Read from BLE
       // --------------------------------------------------
 
-      final duration =
-      await _bleService.readWaterDuration(
-        deviceId,
-      );
+      final duration = await _bleService.readWaterDuration(deviceId);
 
       // --------------------------------------------------
       // Result
@@ -909,9 +859,7 @@ class BleProvider extends ChangeNotifier {
       print("==================================================");
 
       return duration;
-
     } catch (e, stack) {
-
       print("");
       print("==================================================");
       print("❌ READ WATER DURATION FAILED");
@@ -928,21 +876,19 @@ class BleProvider extends ChangeNotifier {
       return null;
     }
   }
-  Future<int?> readScheduleDaysMask() async {
 
+  Future<int?> readScheduleDaysMask() async {
     print("");
     print("==================================================");
     print("📖 READ SCHEDULE DAYS MASK");
     print("==================================================");
 
     try {
-
       // --------------------------------------------------
       // Check connection
       // --------------------------------------------------
 
       if (_connectedDevice == null) {
-
         print("❌ No Connected Device");
         print("❌ Cannot read schedule days mask");
 
@@ -962,10 +908,7 @@ class BleProvider extends ChangeNotifier {
       // Read from BLE
       // --------------------------------------------------
 
-      final daysMask =
-      await _bleService.readScheduleDaysMask(
-        deviceId,
-      );
+      final daysMask = await _bleService.readScheduleDaysMask(deviceId);
 
       // --------------------------------------------------
       // Result
@@ -984,9 +927,7 @@ class BleProvider extends ChangeNotifier {
       print("==================================================");
 
       return daysMask;
-
     } catch (e, stack) {
-
       print("");
       print("==================================================");
       print("❌ READ SCHEDULE DAYS MASK FAILED");
@@ -1003,21 +944,19 @@ class BleProvider extends ChangeNotifier {
       return null;
     }
   }
-  Future<int?> readScheduleTime() async {
 
+  Future<int?> readScheduleTime() async {
     print("");
     print("==================================================");
     print("📖 READ SCHEDULE TIME");
     print("==================================================");
 
     try {
-
       // --------------------------------------------------
       // Check connection
       // --------------------------------------------------
 
       if (_connectedDevice == null) {
-
         print("❌ No Connected Device");
         print("❌ Cannot read schedule time");
 
@@ -1037,10 +976,7 @@ class BleProvider extends ChangeNotifier {
       // Read from BLE
       // --------------------------------------------------
 
-      final timeMinutes =
-      await _bleService.readScheduleTime(
-        deviceId,
-      );
+      final timeMinutes = await _bleService.readScheduleTime(deviceId);
 
       // --------------------------------------------------
       // Result
@@ -1051,9 +987,11 @@ class BleProvider extends ChangeNotifier {
 
       print("------------------------------------------");
       print("⏰ Time Minutes : $timeMinutes");
-      print("⏰ Time         : "
-          "${(timeMinutes ~/ 60).toString().padLeft(2, '0')}:"
-          "${(timeMinutes % 60).toString().padLeft(2, '0')}");
+      print(
+        "⏰ Time         : "
+        "${(timeMinutes ~/ 60).toString().padLeft(2, '0')}:"
+        "${(timeMinutes % 60).toString().padLeft(2, '0')}",
+      );
       print("------------------------------------------");
 
       print("");
@@ -1062,9 +1000,7 @@ class BleProvider extends ChangeNotifier {
       print("==================================================");
 
       return timeMinutes;
-
     } catch (e, stack) {
-
       print("");
       print("==================================================");
       print("❌ READ SCHEDULE TIME FAILED");
@@ -1081,6 +1017,7 @@ class BleProvider extends ChangeNotifier {
       return null;
     }
   }
+
   Future<PotModel?> readCurrentPot() async {
     try {
       if (_connectedDevice == null) {
@@ -1090,16 +1027,12 @@ class BleProvider extends ChangeNotifier {
 
       final deviceId = _connectedDevice!.id;
 
-
       print("📖 PROVIDER - READING CURRENT POT");
       print("Device : $deviceId");
       print("==================================================");
 
       return await _bleService.readCurrentPot(deviceId);
-
     } catch (e, stack) {
-
-
       print("❌ PROVIDER - READ CURRENT POT FAILED");
       print("Error: $e");
 
@@ -1142,12 +1075,8 @@ class BleProvider extends ChangeNotifier {
       final lastWateredFuture = _bleService.readLastWatered(
         _connectedDevice!.id,
       );
-      final cycleCountFuture = _bleService.readCycleCount(
-        _connectedDevice!.id,
-      );
-      final tankStatusFuture = _bleService.readTankStatus(
-        _connectedDevice!.id,
-      );
+      final cycleCountFuture = _bleService.readCycleCount(_connectedDevice!.id);
+      final tankStatusFuture = _bleService.readTankStatus(_connectedDevice!.id);
       final firmwareVersionFuture = _bleService.readFirmwareVersion(
         _connectedDevice!.id,
       );
@@ -1258,7 +1187,6 @@ class BleProvider extends ChangeNotifier {
       print('========================================');
 
       return true;
-
     } catch (e, stack) {
       print('');
       print('❌ READ CONFIGURATION FAILED');
@@ -1266,12 +1194,12 @@ class BleProvider extends ChangeNotifier {
       print('Stack: $stack');
 
       return false;
-
     } finally {
       _isReadingConfiguration = false;
       notifyListeners();
     }
   }
+
   /// WRITE
   Future<bool> writeConfiguration({
     required int plantType,
@@ -1299,33 +1227,18 @@ class BleProvider extends ChangeNotifier {
 
       // Plant
       await Future.wait([
-        _bleService.writePlantType(
-          _connectedDevice!.id,
-          plantType,
-        ),
-        _bleService.writePlantName(
-          _connectedDevice!.id,
-          plantName,
-        ),
+        _bleService.writePlantType(_connectedDevice!.id, plantType),
+        _bleService.writePlantName(_connectedDevice!.id, plantName),
       ]);
 
       print('✅ Plant configuration written');
 
       // Schedule
-      await _bleService.writeScheduleDaysMask(
-        _connectedDevice!.id,
-        daysMask,
-      );
+      await _bleService.writeScheduleDaysMask(_connectedDevice!.id, daysMask);
 
-      await _bleService.writeScheduleTime(
-        _connectedDevice!.id,
-        timeMinutes,
-      );
+      await _bleService.writeScheduleTime(_connectedDevice!.id, timeMinutes);
 
-      await _bleService.writeWaterDuration(
-        _connectedDevice!.id,
-        waterDuration,
-      );
+      await _bleService.writeWaterDuration(_connectedDevice!.id, waterDuration);
 
       print('✅ Schedule configuration written');
 
@@ -1349,21 +1262,19 @@ class BleProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+
   Future<void> syncRtcNow() async {
     if (_connectedDevice == null) return;
 
-    final unixTime =
-        DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final unixTime = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     print(unixTime);
 
-    await _bleService.syncRtc(
-      _connectedDevice!.id,
-      unixTime,
-    );
+    await _bleService.syncRtc(_connectedDevice!.id, unixTime);
 
     print("🕒 RTC Synced");
     print("Unix Time : $unixTime");
   }
+
   Future<void> setupDone() async {
     if (_connectedDevice == null) return;
 
@@ -1371,7 +1282,6 @@ class BleProvider extends ChangeNotifier {
 
     print(" Setup Done");
   }
-
 
   // Inside BleProvider class
 
@@ -1415,8 +1325,6 @@ class BleProvider extends ChangeNotifier {
   // }
   // Inside BleProvider class
 
-
-
   Future<void> startFirmwareUpdateOld() async {
     if (_connectedDevice == null) return;
 
@@ -1451,6 +1359,7 @@ class BleProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+
   Future<void> startFirmwareUpdate() async {
     if (_connectedDevice == null) return;
 
@@ -1482,7 +1391,16 @@ class BleProvider extends ChangeNotifier {
       // 3. Small delay to let the BLE stack apply the new parameters
       await Future.delayed(const Duration(milliseconds: 1000));
 
-
+      // final smpTest = SmpTest(
+      //   ble: _bleService.ble,
+      //   deviceId: deviceId,
+      //   onProgress: (progress) {
+      //     _updateProgress = progress;
+      //     notifyListeners();
+      //   },
+      // );
+      //
+      // await smpTest.start();
       final smpTest = SmpTest(
         ble: _bleService.ble,
         deviceId: deviceId,
@@ -1492,7 +1410,13 @@ class BleProvider extends ChangeNotifier {
         },
       );
 
-      await smpTest.start();
+      try {
+        await smpTest.start();
+
+        print("✅ DFU Update Successful");
+      } finally {
+        await smpTest.dispose();
+      }
 
       print("✅ DFU Update Successful");
     } catch (e) {
@@ -1515,7 +1439,6 @@ class BleProvider extends ChangeNotifier {
 
   @override
   void dispose() {
-
     _statusSubscription?.cancel();
 
     _scanSubscription?.cancel();
