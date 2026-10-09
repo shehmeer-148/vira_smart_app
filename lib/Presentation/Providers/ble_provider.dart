@@ -1391,6 +1391,16 @@ class BleProvider extends ChangeNotifier {
       // 3. Small delay to let the BLE stack apply the new parameters
       await Future.delayed(const Duration(milliseconds: 1000));
 
+      // final smpTest = SmpTest(
+      //   ble: _bleService.ble,
+      //   deviceId: deviceId,
+      //   onProgress: (progress) {
+      //     _updateProgress = progress;
+      //     notifyListeners();
+      //   },
+      // );
+      //
+      // await smpTest.start();
       final smpTest = SmpTest(
         ble: _bleService.ble,
         deviceId: deviceId,
@@ -1400,7 +1410,13 @@ class BleProvider extends ChangeNotifier {
         },
       );
 
-      await smpTest.start();
+      try {
+        await smpTest.start();
+
+        print("✅ DFU Update Successful");
+      } finally {
+        await smpTest.dispose();
+      }
 
       print("✅ DFU Update Successful");
     } catch (e) {
