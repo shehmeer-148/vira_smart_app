@@ -22,7 +22,9 @@ class SmpTest {
   late final SmpBleTransport transport;
   late final SmpClient client;
 
-  Future<void> start() async {
+  bool _isStarting = false;
+
+  Future<void> startOld() async {
     transport = SmpBleTransport(ble: ble, deviceId: deviceId);
 
     client = SmpClient(transport);
@@ -43,85 +45,46 @@ class SmpTest {
     await diagnoseFirmwareImages();
   }
 
+  Future<void> start() async {
+    if (_isStarting) {
+      print('⚠️ [SmpTest] Start already in progress.');
+      return;
+    }
 
+    _isStarting = true;
 
-  Future<void> firmwareUploadTestOld() async {
-    print('');
-    print('=================================================');
-    print('🧪 AUTOMATIC ALTERNATING FIRMWARE UPLOAD');
-    print('=================================================');
+    transport = SmpBleTransport(
+      ble: ble,
+      deviceId: deviceId,
+    );
+    client = SmpClient(transport);
 
     try {
-      final imgMgmt = ImgMgmt(
-        client,
-        maxWriteLength: () => transport.maxWriteLength,
-      );
+      print('🔗 [SmpTest] Connecting transport...');
+      await transport.connect();
 
-      // 1. Get the hash of the firmware currently running on the device
-      print('🔍 Checking current device firmware hash...');
-      final slots = await imgMgmt.list();
-      final runningSlot = slots.firstWhere((s) => s.slot == 0);
-      final deviceHashHex = runningSlot.hashHex;
-      print('📱 Device is currently running hash: $deviceHashHex');
+      print('⏳ [SmpTest] Waiting for GATT stabilization...');
+      await Future.delayed(const Duration(milliseconds: 1000));
 
-      // 2. Load both files and calculate their hashes
-      final originalData = await rootBundle.load('DFU-files/zephyr.signed.bin');
-      final trailData = await rootBundle.load('DFU-files/zephyr.signed(1).bin');
+      print('✅ [SmpTest] Transport ready');
 
-      final trailBytes = trailData.buffer.asUint8List();
-      final originalBytes = originalData.buffer.asUint8List();
 
-      // Calculate local hashes to compare
-      final trailHashHex = crypto.sha256.convert(trailBytes).toString();
-      final originalHashHex = crypto.sha256.convert(originalBytes).toString();
 
-      // 3. Logic: Select the file that is DIFFERENT from what is on the device
-      Uint8List firmwareToUpload;
-      String fileName;
+      await firmwareUploadTest();
+      await diagnoseFirmwareImages();
+    } catch (e, stackTrace) {
+      print('❌ [SmpTest] Failed; disposing transport: $e');
 
-      if (deviceHashHex == originalHashHex) {
-        print(
-          '🔄 Device has "original.bin". Switching to "trail.bin" for test.',
-        );
-        firmwareToUpload = trailBytes;
-        fileName = 'trail.bin';
-      } else {
-        print(
-          '🔄 Device has "trail.bin" (or unknown). Switching to "original.bin" for test.',
-        );
-        firmwareToUpload = originalBytes;
-        fileName = 'original.bin';
+      try {
+        await transport.dispose();
+        print('🧹 [SmpTest] Failed-session transport disposed.');
+      } catch (disposeError) {
+        print('⚠️ [SmpTest] Dispose error: $disposeError');
       }
 
-      print('📦 Selected File: $fileName (${firmwareToUpload.length} bytes)');
-      print(
-        '📤 Starting firmware upload with chunk size: ${imgMgmt.steadyChunkSize}',
-      );
-
-      // 4. Run the upload
-      final List<int> responseSha = await imgMgmt.upload(
-        firmwareToUpload,
-        onProgress: (int sent, int total) {
-          final double progressValue = sent / total;
-          if (onProgress != null) {
-            onProgress!(progressValue);
-          }
-          // Optional: reduce logging frequency to speed up UI
-          if (sent % 5 == 0 || sent == total) {
-            print(
-              '⏳ Uploading $fileName: ${(progressValue * 100).toStringAsFixed(1)}%',
-            );
-          }
-        },
-      );
-
-      // 5. Finalize and Reboot
-      await finalizeAndReboot(responseSha);
-
-      print('✅ FIRMWARE UPLOAD COMPLETED: $fileName is now staged.');
-    } catch (e, stackTrace) {
-      print('❌ UPLOAD FAILED: $e');
-      rethrow;
+      Error.throwWithStackTrace(e, stackTrace);
+    } finally {
+      _isStarting = false;
     }
   }
   Future<void> firmwareUploadTestWorking() async {
@@ -375,7 +338,6 @@ class SmpTest {
     }
   }
 
-
   Future<void> firmwareUploadTest() async {
     print('');
     print('=================================================');
@@ -519,13 +481,20 @@ class SmpTest {
           final double progressValue = sent / total;
 
           onProgress?.call(progressValue);
-
-          if (sent % 5 == 0 || sent == total) {
-            print(
-              '⏳ Uploading $fileName: '
-                  '${(progressValue * 100).toStringAsFixed(1)}%',
-            );
+          // Only print every 10% or when complete to keep things fast
+          final int percent = (progressValue * 100).toInt();
+          if (percent % 10 == 0 && sent != total) {
+            print('⏳ Uploading $fileName: $percent%');
+          } else if (sent == total) {
+            print('⏳ Uploading $fileName: 100%');
           }
+
+          // if (sent % 5 == 0 || sent == total) {
+          //   print(
+          //     '⏳ Uploading $fileName: '
+          //         '${(progressValue * 100).toStringAsFixed(1)}%',
+          //   );
+          // }
         },
       );
 

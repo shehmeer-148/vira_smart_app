@@ -135,7 +135,7 @@ class SmpBleTransport implements SmpTransport {
       print('❌ MTU request failed: $e');
     }
   }
-  /////////////////////////////////////////////////////////////////
+
 }
 
 class FirmwareService {

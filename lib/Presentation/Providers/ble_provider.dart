@@ -1291,41 +1291,7 @@ class BleProvider extends ChangeNotifier {
   double _updateProgress = 0.0;
   double get updateProgress => _updateProgress;
 
-  // Future<void> startFirmwareUpdateOld() async {
-  //   if (_connectedDevice == null) {
-  //     print("❌ No device connected for DFU");
-  //     return;
-  //   }
-  //
-  //   try {
-  //     _isUpdating = true;
-  //     notifyListeners();
-  //
-  //     print("🚀 Starting DFU Update for: ${_connectedDevice!.id}");
-  //
-  //     // 1. Request high MTU for faster transfer
-  //     await _bleService.requestMtu(deviceId: _connectedDevice!.id, mtu: 247);
-  //
-  //     // 2. Run the SMP Test
-  //     final smpTest = SmpTest(
-  //       ble: _bleService.ble, // Pass your reactive ble instance
-  //       deviceId: _connectedDevice!.id,
-  //     );
-  //
-  //     await smpTest.start();
-  //
-  //     print("✅ DFU Update Successful");
-  //   } catch (e) {
-  //     print("❌ DFU Update Failed: $e");
-  //     rethrow;
-  //   } finally {
-  //     _isUpdating = false;
-  //     notifyListeners();
-  //   }
-  // }
-  // Inside BleProvider class
-
-  Future<void> startFirmwareUpdateOld() async {
+  Future<void> startFirmwareUpdate() async {
     if (_connectedDevice == null) return;
 
     try {
@@ -1360,82 +1326,7 @@ class BleProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> startFirmwareUpdate() async {
-    if (_connectedDevice == null) return;
 
-    try {
-      _isUpdating = true;
-      _updateProgress = 0.0;
-      notifyListeners();
-
-      final deviceId = _connectedDevice!.id;
-      print("🚀 Starting Optimized DFU Update for: $deviceId");
-
-      // 1. Request High MTU (Already doing this, but ensure it's 512)
-      // This allows more data per packet.
-      await _bleService.requestMtu(deviceId: deviceId, mtu: 512);
-
-      // 2. 🌟 CRITICAL: Request High Performance Connection Priority
-      // This reduces the connection interval (time between packets)
-      // from ~30ms down to ~7.5ms - 15ms on Android.
-      try {
-        await _bleService.requestConnectionPriority(
-          deviceId: deviceId,
-          priority: ConnectionPriority.highPerformance,
-        );
-        print("⚡ Connection priority set to High Performance");
-      } catch (e) {
-        print("⚠️ Could not set connection priority: $e");
-      }
-
-      // 3. Small delay to let the BLE stack apply the new parameters
-      await Future.delayed(const Duration(milliseconds: 1000));
-
-      // final smpTest = SmpTest(
-      //   ble: _bleService.ble,
-      //   deviceId: deviceId,
-      //   onProgress: (progress) {
-      //     _updateProgress = progress;
-      //     notifyListeners();
-      //   },
-      // );
-      //
-      // await smpTest.start();
-      final smpTest = SmpTest(
-        ble: _bleService.ble,
-        deviceId: deviceId,
-        onProgress: (progress) {
-          _updateProgress = progress;
-          notifyListeners();
-        },
-      );
-
-      try {
-        await smpTest.start();
-
-        print("✅ DFU Update Successful");
-      } finally {
-        await smpTest.dispose();
-      }
-
-      print("✅ DFU Update Successful");
-    } catch (e) {
-      print("❌ DFU Update Failed: $e");
-      rethrow;
-    } finally {
-      // 4. Optional: Reset priority to balanced to save battery after update
-      try {
-        await _bleService.requestConnectionPriority(
-          deviceId: _connectedDevice!.id,
-          priority: ConnectionPriority.balanced,
-        );
-      } catch (_) {}
-
-      _isUpdating = false;
-      _updateProgress = 0.0;
-      notifyListeners();
-    }
-  }
 
   @override
   void dispose() {
